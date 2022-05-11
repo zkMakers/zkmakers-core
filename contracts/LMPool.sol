@@ -11,36 +11,178 @@ import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 
 contract LMPool is ReentrancyGuard, Ownable, AccessControl {
     bytes32 public constant OWNER_ADMIN = keccak256("OWNER_ADMIN");
-    bytes32 public constant FACTORY_ADMIN = keccak256("FACTORY_ADMIN");
+    bytes32 public constant ORACLE_NODE = keccak256("ORACLE_NODE");
 
     using Address for address payable;
+
+    // Info of each user.
+    struct UserInfo {
+        uint256 amount;     // How many points the user has provided.
+        uint256 rewardDebt; // Reward debt.
+    }
+    uint256 accTokenPerShare;
+    uint256 lastRewardBlock;
+    mapping (address => UserInfo) public userInfo;
+    uint256 totalPoints;
+
+    event Withdraw(address indexed user, uint256 amount);
+    event MintPoints(address indexed user, uint256 amount);
 
     address public rewardToken;
     uint256 public tokenDecimals;
     uint256 public startDate;
     uint256 public endDate;
-    bool public funded = false;
+    uint256 public rewardPerBlock;
+    address public factory;
+
+    mapping(uint256 => bool) public usedNonces;
+
+    // User => Last Proof Timestamp
+    mapping(address => uint256) public lastProofTime;
+
+    uint256 precision = 1e12;
 
     constructor(
+        address _factory,
         address _rewardToken,
-        uint256 _startDate
+        uint256 _startDate,
+        uint256 _endDate,
+        uint256 _rewardPerBlock
     ) {
+        _factory = factory;
         tokenDecimals = IERC20Metadata(_rewardToken).decimals();
         startDate = _startDate;
         rewardToken = _rewardToken;
-
+        endDate = _endDate;
+        rewardPerBlock = _rewardPerBlock;
         _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
 
-    function fund(uint256 totalTokens)
-        external
-    {
-        require(!funded, "LMPool: Already funded");
-
-        IERC20(rewardToken).transferFrom(msg.sender, address(this), totalTokens); // ToDo get tokens from constructor
-        funded = true;
+    function fund(uint256 amount) external {
+        IERC20(rewardToken).transferFrom(msg.sender, address(this), amount);
     }
 
+    function submitProof(uint256 amount, uint256 nonce, uint256 proofTime, bytes calldata sig) isPoolRunning external {
+        require(!usedNonces[nonce], "Nonce already used");
+        UserInfo storage user = userInfo[msg.sender];
+
+        usedNonces[nonce] = true;
+        lastProofTime[msg.sender] = proofTime;
+
+        // This recreates the message that was signed on the oracles
+        bytes32 message = prefixed(keccak256(abi.encodePacked(msg.sender, amount, nonce, proofTime, this)));
+
+        require(AccessControl(factory).hasRole(ORACLE_NODE, recoverSigner(message, sig)), "Signature is not from an oracle");
+
+        updatePool();
+
+        if (user.amount > 0) {
+            uint256 remainingRewards = IERC20(rewardToken).balanceOf(address(this));
+            uint256 pending = (user.amount * accTokenPerShare / precision) - user.rewardDebt;
+
+            if (remainingRewards == 0) {
+                pending = 0;
+            } else if (pending > remainingRewards) {
+                pending = remainingRewards;
+            }
+
+            if (pending > 0) {
+                IERC20(rewardToken).transfer(address(msg.sender), pending);
+            }
+        }
+        if (amount > 0) {
+            user.amount = user.amount + amount;
+        }
+        user.rewardDebt = user.amount * accTokenPerShare / precision;
+
+        totalPoints = totalPoints + amount;
+
+        emit MintPoints(msg.sender, amount);
+    }
+
+    function pendingReward(address _user) external view returns (uint256) {
+        UserInfo storage user = userInfo[_user];
+
+        uint256 tokenPerShare = accTokenPerShare;
+
+        if (block.number > lastRewardBlock && totalPoints != 0) {
+            uint256 multiplier = block.number - lastRewardBlock;
+            uint256 reward = multiplier * rewardPerBlock;
+            tokenPerShare = tokenPerShare + (reward * precision / totalPoints);
+        }
+
+        uint256 remainingRewards = IERC20(rewardToken).balanceOf(address(this));
+        uint256 rewards = (user.amount * tokenPerShare / precision) - user.rewardDebt;
+
+        if (remainingRewards == 0) {
+            rewards = 0;
+        } else if (rewards > remainingRewards) {
+            rewards = remainingRewards;
+        }
+
+        return rewards;
+    }
+
+    // Update reward variables 
+    function updatePool() public {
+        if (block.number <= lastRewardBlock) {
+            return;
+        }
+
+        if (totalPoints == 0) {
+            lastRewardBlock = block.number;
+            return;
+        }
+
+        uint256 multiplier = block.number - lastRewardBlock;
+        uint256 reward = multiplier * rewardPerBlock;
+        accTokenPerShare = accTokenPerShare + (reward * precision/ totalPoints);
+        lastRewardBlock = block.number;
+    }
+
+
+    // Signature methods
+    function splitSignature(bytes memory sig)
+        internal
+        pure
+        returns (uint8, bytes32, bytes32)
+    {
+        require(sig.length == 65);
+
+        bytes32 r;
+        bytes32 s;
+        uint8 v;
+
+        assembly {
+            // first 32 bytes, after the length prefix
+            r := mload(add(sig, 32))
+            // second 32 bytes
+            s := mload(add(sig, 64))
+            // final byte (first byte of the next 32 bytes)
+            v := byte(0, mload(add(sig, 96)))
+        }
+
+        return (v, r, s);
+    }
+
+    function recoverSigner(bytes32 message, bytes memory sig)
+        internal
+        pure
+        returns (address)
+    {
+        uint8 v;
+        bytes32 r;
+        bytes32 s;
+
+        (v, r, s) = splitSignature(sig);
+
+        return ecrecover(message, v, r, s);
+    }
+
+    // Builds a prefixed hash to mimic the behavior of eth_sign.
+    function prefixed(bytes32 hash) internal pure returns (bytes32) {
+        return keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", hash));
+    }
 
     function isActive()
         public
@@ -48,8 +190,8 @@ contract LMPool is ReentrancyGuard, Ownable, AccessControl {
         returns(bool)
     {
         return (
-            funded && block.timestamp >= startDate
-            // && block.timestamp < endDate
+            IERC20(rewardToken).balanceOf(address(this)) > 0 && block.timestamp >= startDate
+            && block.timestamp < endDate
         );
     }
 

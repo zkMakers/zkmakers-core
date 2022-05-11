@@ -27,14 +27,18 @@ contract('Liquid Miners Pool Factory', function (accounts) {
     );
 
     // Pool
-    const lmPoolAddress = await this.lmPoolFactory.create.call(
+    const lmPoolAddress = await this.lmPoolFactory.createDynamicPool.call(
       this.token.address,
       startDate,
+      endDate,
+      '1000000000000000000',
       { from: accounts[0] }
     );
-    const { logs } = await this.lmPoolFactory.create(
+    const { logs } = await this.lmPoolFactory.createDynamicPool(
       this.token.address,
       startDate,
+      endDate,
+      '1000000000000000000',
       { from: accounts[0] }
     );
 
@@ -61,13 +65,6 @@ contract('Liquid Miners Pool Factory', function (accounts) {
       assert.isTrue(
         await this.lmPool.hasRole(OWNER_ADMIN, accounts[0]).valueOf(),
         'Account has NOT OWNER_ADMIN role'
-      );
-    });
-
-    it('Factory has FACTORY_ADMIN role', async function() { 
-      assert.isTrue(
-        await this.lmPool.hasRole(FACTORY_ADMIN, this.lmPoolFactory.address).valueOf(),
-        'Account has NOT FACTORY_ADMIN role'
       );
     });
 

@@ -8,7 +8,7 @@ import "./LMPool.sol";
 
 contract LMPoolFactory is ReentrancyGuard, Ownable, AccessControl {
     bytes32 public constant OWNER_ADMIN = keccak256("OWNER_ADMIN");
-    bytes32 public constant FACTORY_ADMIN = keccak256("FACTORY_ADMIN");
+    bytes32 public constant ORACLE_NODE = keccak256("ORACLE_NODE");
 
     address[] public allPools;
 
@@ -17,17 +17,28 @@ contract LMPoolFactory is ReentrancyGuard, Ownable, AccessControl {
         uint256 created
     );
 
-    constructor() {
-        _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
+    function createOracle(address oracle) external {
+        require(hasRole(OWNER_ADMIN, msg.sender), "LMPoolFactory: Restricted to OWNER_ADMIN role on LMPool");
+        _grantRole(ORACLE_NODE, oracle);
     }
 
-    function create(
+    function removeOracle(address oracle) external {
+        require(hasRole(OWNER_ADMIN, msg.sender), "LMPoolFactory: Restricted to OWNER_ADMIN role on LMPool");
+        _revokeRole(ORACLE_NODE, oracle);
+    }
+
+    function createDynamicPool(
         address _rewardToken,
-        uint256 _startDate
+        uint256 _startDate,
+        uint256 _endDate,
+        uint256 _rewardPerBlock
     ) external returns(address) {
         LMPool newPool = new LMPool(
+            address(this),
             _rewardToken,
-            _startDate
+            _startDate,
+            _endDate,
+            _rewardPerBlock
         );
 
         allPools.push(address(newPool));
@@ -38,8 +49,6 @@ contract LMPoolFactory is ReentrancyGuard, Ownable, AccessControl {
         );
 
         LMPool(newPool).grantRole(OWNER_ADMIN, msg.sender);
-        LMPool(newPool).grantRole(FACTORY_ADMIN, address(this));
-
         return address(newPool);
     }
 
