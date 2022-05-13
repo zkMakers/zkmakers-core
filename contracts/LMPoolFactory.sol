@@ -70,7 +70,7 @@ contract LMPoolFactory is ReentrancyGuard, Ownable, AccessControl {
     function createDynamicPool(
         address _rewardToken,
         uint256 _startDate,
-        uint256 _endDate,
+        uint256 _durationInEpochs,
         uint256 _rewardPerEpoch
     ) external returns(address) {
         require(acceptedRewardTokens[_rewardToken], "LMPoolFactory: Reward token is not accepted.");
@@ -79,7 +79,7 @@ contract LMPoolFactory is ReentrancyGuard, Ownable, AccessControl {
             address(this),
             _rewardToken,
             _startDate,
-            _endDate,
+            _durationInEpochs,
             _rewardPerEpoch
         );
 

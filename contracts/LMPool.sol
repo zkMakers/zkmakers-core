@@ -31,7 +31,7 @@ contract LMPool is ReentrancyGuard, Ownable, AccessControl {
     address public rewardToken;
     uint256 public tokenDecimals;
     uint256 public startDate;
-    uint256 public endDate;
+    uint256 public durationInEpochs;
     uint256 public rewardPerEpoch;
     address public factory;
     uint256 public epochDuration = 24 hours;
@@ -49,14 +49,14 @@ contract LMPool is ReentrancyGuard, Ownable, AccessControl {
         address _factory,
         address _rewardToken,
         uint256 _startDate,
-        uint256 _endDate,
+        uint256 _durationInEpochs,
         uint256 _rewardPerEpoch
     ) {
         _factory = factory;
         tokenDecimals = IERC20Metadata(_rewardToken).decimals();
         startDate = _startDate;
         rewardToken = _rewardToken;
-        endDate = _endDate;
+        durationInEpochs = _durationInEpochs;
         rewardPerEpoch = _rewardPerEpoch;
         _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
@@ -216,7 +216,7 @@ contract LMPool is ReentrancyGuard, Ownable, AccessControl {
     {
         return (
             totalRewards > 0 && block.timestamp >= startDate
-            && block.timestamp < endDate
+            && getCurrentEpoch() <= durationInEpochs
         );
     }
 
