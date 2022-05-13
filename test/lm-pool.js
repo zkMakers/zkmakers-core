@@ -23,6 +23,11 @@ contract('Liquid Miners Pool', function (accounts) {
     this.lmPoolFactory = await LMPoolFactory.new(
       { from: accounts[0] }
     );
+    
+    await this.lmPoolFactory.acceptRewardToken(
+      this.token.address,
+      { from: accounts[0] }
+    );
 
     // Pool
     const lmPoolAddress = await this.lmPoolFactory.createDynamicPool.call(
@@ -59,8 +64,8 @@ contract('Liquid Miners Pool', function (accounts) {
   describe('Simple pool', function () {
 
 
-    it('isActive after fund but not starttime', async function() {
-      await this.lmPool.fund('10000000000000000000000000000000000', { from: accounts[0] });
+    it('isActive after addRewards but not starttime', async function() {
+      await this.lmPool.addRewards('10000000000000000000000000000000000', { from: accounts[0] });
 
       assert.isFalse(
         await this.lmPool.isActive(),
@@ -69,7 +74,7 @@ contract('Liquid Miners Pool', function (accounts) {
     });
 
 
-    it('isActive after starttime but not fund', async function() {
+    it('isActive after starttime but not funded with rewards', async function() {
       await time.increase(time.duration.minutes(6));
 
       assert.isFalse(
@@ -78,8 +83,8 @@ contract('Liquid Miners Pool', function (accounts) {
       );
     });
 
-    it('isActive after fund and starttime', async function() {
-      await this.lmPool.fund('10000000000000000000000000000000000', { from: accounts[0] });
+    it('isActive after fund rewards and starttime', async function() {
+      await this.lmPool.addRewards('10000000000000000000000000000000000', { from: accounts[0] });
 
       await time.increase(time.duration.minutes(6));
 

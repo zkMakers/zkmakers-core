@@ -21,7 +21,7 @@ contract LMPool is ReentrancyGuard, Ownable, AccessControl {
         uint256 rewardDebt; // Reward debt.
     }
     uint256 accTokenPerShare;
-    uint256 lastRewardBlock;
+    uint256 lastRewardEpoch;
     mapping (address => UserInfo) public userInfo;
     uint256 totalPoints;
 
@@ -32,8 +32,11 @@ contract LMPool is ReentrancyGuard, Ownable, AccessControl {
     uint256 public tokenDecimals;
     uint256 public startDate;
     uint256 public endDate;
-    uint256 public rewardPerBlock;
+    uint256 public rewardPerEpoch;
     address public factory;
+    uint256 public epochDuration = 24 hours;
+    uint256 public delayClaimEpoch = 7; // We need to wait to epoch to claim the rewards
+    uint256 public totalRewards;
 
     mapping(uint256 => bool) public usedNonces;
 
@@ -47,19 +50,21 @@ contract LMPool is ReentrancyGuard, Ownable, AccessControl {
         address _rewardToken,
         uint256 _startDate,
         uint256 _endDate,
-        uint256 _rewardPerBlock
+        uint256 _rewardPerEpoch
     ) {
         _factory = factory;
         tokenDecimals = IERC20Metadata(_rewardToken).decimals();
         startDate = _startDate;
         rewardToken = _rewardToken;
         endDate = _endDate;
-        rewardPerBlock = _rewardPerBlock;
+        rewardPerEpoch = _rewardPerEpoch;
         _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
 
-    function fund(uint256 amount) external {
+    function addRewards(uint256 amount) external {
         IERC20(rewardToken).transferFrom(msg.sender, address(this), amount);
+        // ToDo transfer fee to treasury
+        totalRewards = totalRewards + amount;
     }
 
     function submitProof(uint256 amount, uint256 nonce, uint256 proofTime, bytes calldata sig) isPoolRunning external {
@@ -77,7 +82,7 @@ contract LMPool is ReentrancyGuard, Ownable, AccessControl {
         updatePool();
 
         if (user.amount > 0) {
-            uint256 remainingRewards = IERC20(rewardToken).balanceOf(address(this));
+            uint256 remainingRewards = totalRewards;
             uint256 pending = (user.amount * accTokenPerShare / precision) - user.rewardDebt;
 
             if (remainingRewards == 0) {
@@ -88,6 +93,7 @@ contract LMPool is ReentrancyGuard, Ownable, AccessControl {
 
             if (pending > 0) {
                 IERC20(rewardToken).transfer(address(msg.sender), pending);
+                totalRewards = totalRewards - pending;
             }
         }
         if (amount > 0) {
@@ -104,14 +110,15 @@ contract LMPool is ReentrancyGuard, Ownable, AccessControl {
         UserInfo storage user = userInfo[_user];
 
         uint256 tokenPerShare = accTokenPerShare;
+        uint256 currentEpoch = getCurrentEpoch();
 
-        if (block.number > lastRewardBlock && totalPoints != 0) {
-            uint256 multiplier = block.number - lastRewardBlock;
-            uint256 reward = multiplier * rewardPerBlock;
+        if (currentEpoch > lastRewardEpoch && totalPoints != 0) {
+            uint256 multiplier = currentEpoch - lastRewardEpoch;
+            uint256 reward = multiplier * rewardPerEpoch;
             tokenPerShare = tokenPerShare + (reward * precision / totalPoints);
         }
 
-        uint256 remainingRewards = IERC20(rewardToken).balanceOf(address(this));
+        uint256 remainingRewards = totalRewards;
         uint256 rewards = (user.amount * tokenPerShare / precision) - user.rewardDebt;
 
         if (remainingRewards == 0) {
@@ -123,21 +130,39 @@ contract LMPool is ReentrancyGuard, Ownable, AccessControl {
         return rewards;
     }
 
+    function getCurrentEpochWithDelay() public view returns (uint256) {
+        uint256 currentEpoch = getCurrentEpoch();
+        if (currentEpoch <= delayClaimEpoch) {
+            return 0;
+        }
+        return currentEpoch - delayClaimEpoch;
+    }
+
+    function getCurrentEpoch() public view returns (uint256) {
+        uint256 currentTime = block.timestamp;
+        if (currentTime < startDate) {
+            return 0;
+        }
+        uint256 timePassed = currentTime - startDate;
+        return timePassed / epochDuration;
+    }
+
     // Update reward variables 
     function updatePool() public {
-        if (block.number <= lastRewardBlock) {
+        uint256 currentEpoch = getCurrentEpoch();
+        if (currentEpoch <= lastRewardEpoch) {
             return;
         }
 
         if (totalPoints == 0) {
-            lastRewardBlock = block.number;
+            lastRewardEpoch = currentEpoch;
             return;
         }
 
-        uint256 multiplier = block.number - lastRewardBlock;
-        uint256 reward = multiplier * rewardPerBlock;
+        uint256 multiplier = currentEpoch - lastRewardEpoch;
+        uint256 reward = multiplier * rewardPerEpoch;
         accTokenPerShare = accTokenPerShare + (reward * precision/ totalPoints);
-        lastRewardBlock = block.number;
+        lastRewardEpoch = currentEpoch;
     }
 
 
@@ -190,7 +215,7 @@ contract LMPool is ReentrancyGuard, Ownable, AccessControl {
         returns(bool)
     {
         return (
-            IERC20(rewardToken).balanceOf(address(this)) > 0 && block.timestamp >= startDate
+            totalRewards > 0 && block.timestamp >= startDate
             && block.timestamp < endDate
         );
     }

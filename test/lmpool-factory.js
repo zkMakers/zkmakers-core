@@ -26,6 +26,11 @@ contract('Liquid Miners Pool Factory', function (accounts) {
       { from: accounts[0] }
     );
 
+    await this.lmPoolFactory.acceptRewardToken(
+      this.token.address,
+      { from: accounts[0] }
+    );
+
     // Pool
     const lmPoolAddress = await this.lmPoolFactory.createDynamicPool.call(
       this.token.address,
