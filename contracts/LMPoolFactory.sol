@@ -6,14 +6,15 @@ import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "./LMPool.sol";
+import "./ILMPoolFactory.sol";
 
-contract LMPoolFactory is ReentrancyGuard, Ownable, AccessControl {
+contract LMPoolFactory is ILMPoolFactory, ReentrancyGuard, Ownable, AccessControl {
     bytes32 public constant OWNER_ADMIN = keccak256("OWNER_ADMIN");
     bytes32 public constant ORACLE_NODE = keccak256("ORACLE_NODE");
 
     address[] public allPools;
 
-    uint256 public fee = 100; // 10%
+    uint256 fee = 1000; // 10%
 
     // ERC20 => Accepted
     mapping(address => bool) public acceptedRewardTokens;
@@ -25,6 +26,10 @@ contract LMPoolFactory is ReentrancyGuard, Ownable, AccessControl {
 
     constructor() {
         _grantRole(OWNER_ADMIN, msg.sender);
+    }
+
+    function getFee() external override view returns (uint256) {
+        return fee;
     }
 
     function addOwner(address owner) external {
@@ -67,11 +72,11 @@ contract LMPoolFactory is ReentrancyGuard, Ownable, AccessControl {
         fee = amount;
     }
 
+    // ToDo: Send exchange and pair
     function createDynamicPool(
         address _rewardToken,
         uint256 _startDate,
-        uint256 _durationInEpochs,
-        uint256 _rewardPerEpoch
+        uint256 _durationInEpochs
     ) external returns(address) {
         require(acceptedRewardTokens[_rewardToken], "LMPoolFactory: Reward token is not accepted.");
 
@@ -79,8 +84,7 @@ contract LMPoolFactory is ReentrancyGuard, Ownable, AccessControl {
             address(this),
             _rewardToken,
             _startDate,
-            _durationInEpochs,
-            _rewardPerEpoch
+            _durationInEpochs
         );
 
         allPools.push(address(newPool));

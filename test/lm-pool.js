@@ -34,14 +34,12 @@ contract('Liquid Miners Pool', function (accounts) {
       this.token.address,
       startDate,
       duration,
-      '1000000000000000000',
       { from: accounts[0] }
     );
     await this.lmPoolFactory.createDynamicPool(
       this.token.address,
       startDate,
       duration,
-      '1000000000000000000',
       { from: accounts[0] }
     );
     
@@ -65,7 +63,7 @@ contract('Liquid Miners Pool', function (accounts) {
 
 
     it('isActive after addRewards but not starttime', async function() {
-      await this.lmPool.addRewards('10000000000000000000000000000000000', { from: accounts[0] });
+      await this.lmPool.addRewards('100000000000000000000000000', { from: accounts[0], gasLimit: 1000000 });
 
       assert.isFalse(
         await this.lmPool.isActive(),
@@ -84,7 +82,7 @@ contract('Liquid Miners Pool', function (accounts) {
     });
 
     it('isActive after fund rewards and starttime', async function() {
-      await this.lmPool.addRewards('10000000000000000000000000000000000', { from: accounts[0] });
+      await this.lmPool.addRewards('100000000000000000000000000', { from: accounts[0], gasLimit: 1000000 });
 
       await time.increase(time.duration.minutes(6));
 
