@@ -63,7 +63,7 @@ contract LMPool is ReentrancyGuard, Ownable, AccessControl {
 
     function addRewards(uint256 amount) external {
         IERC20(rewardToken).transferFrom(msg.sender, address(this), amount);
-        // ToDo transfer fee to treasury
+        // ToDo transfer fee to treasury reading the fee from factory
         totalRewards = totalRewards + amount;
     }
 

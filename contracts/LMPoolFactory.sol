@@ -13,6 +13,8 @@ contract LMPoolFactory is ReentrancyGuard, Ownable, AccessControl {
 
     address[] public allPools;
 
+    uint256 public fee = 100; // 10%
+
     // ERC20 => Accepted
     mapping(address => bool) public acceptedRewardTokens;
 
@@ -58,6 +60,11 @@ contract LMPoolFactory is ReentrancyGuard, Ownable, AccessControl {
     function withdraw(address token, address receiver, uint256 amount) external {
         require(hasRole(OWNER_ADMIN, msg.sender), "LMPoolFactory: Restricted to OWNER_ADMIN role on LMPool");
         IERC20(token).transfer(receiver, amount);
+    }
+
+    function setFee(uint256 amount) external {
+        require(hasRole(OWNER_ADMIN, msg.sender), "LMPoolFactory: Restricted to OWNER_ADMIN role on LMPool");
+        fee = amount;
     }
 
     function createDynamicPool(
