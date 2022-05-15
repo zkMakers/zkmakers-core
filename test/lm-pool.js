@@ -4,6 +4,7 @@ const { expect } = require('chai');
 const LMPoolFactory = artifacts.require("LMPoolFactory");
 const LMPool = artifacts.require("LMPool");
 const Token = artifacts.require("mocks/Token.sol");
+const Signer = require('./signer');
 
 contract('Liquid Miners Pool', function (accounts) {
 
@@ -11,9 +12,11 @@ contract('Liquid Miners Pool', function (accounts) {
   const now = Math.floor(new Date().getTime() / 1000);
 
   const startDate = now + 300;  // In 5 minutes
+  const proofTimeInFirstEpoch = now + 600; // In 6 mins
   const duration = 3;
 
   beforeEach(async function () {
+
     // Token
     this.token = await Token.new(
       { from: accounts[0] }
@@ -30,7 +33,7 @@ contract('Liquid Miners Pool', function (accounts) {
     );
 
     // Pool
-    const lmPoolAddress = await this.lmPoolFactory.createDynamicPool.call(
+    this.lmPoolAddress = await this.lmPoolFactory.createDynamicPool.call(
       this.token.address,
       startDate,
       duration,
@@ -43,7 +46,12 @@ contract('Liquid Miners Pool', function (accounts) {
       { from: accounts[0] }
     );
     
-    this.lmPool = await LMPool.at(lmPoolAddress);
+    this.lmPool = await LMPool.at(this.lmPoolAddress);
+
+    // Signer
+    await web3.eth.accounts.wallet.create(1);
+    this.signerAddress = web3.eth.accounts.wallet['0'].address;
+    this.signer = new Signer(web3, web3.eth.accounts.wallet['0'].privateKey);
 
     // Approve
     this.token.approve(
@@ -89,6 +97,78 @@ contract('Liquid Miners Pool', function (accounts) {
       assert.isTrue(
         await this.lmPool.isActive(),
         'isActive value is wrong'
+      );
+    });
+
+  });
+
+  describe('Simple pool', function () {
+
+    it('should throw error if we already reached claim time', async function() {
+      await this.lmPool.addRewards('100000000000000000000000000', { from: accounts[0], gasLimit: 1000000 });
+
+      await time.increase(time.duration.minutes(6));
+
+      assert.isTrue(
+        await this.lmPool.isActive(),
+        'isActive value is wrong'
+      );
+      const signature = await this.signer.createSignature(accounts[2], 5, proofTimeInFirstEpoch, this.lmPoolAddress);
+
+
+      await time.increase(time.duration.days(8));
+
+      await expectRevert(
+        this.lmPool.submitProof(signature.finalPoints, signature.nonce, signature.proofTime, signature.proof,
+          { from: accounts[2] }
+        ),
+        'This epoch is already claimable'
+      );
+    });
+
+    it('should throw error if proof is not from oracle', async function() {
+      await this.lmPool.addRewards('100000000000000000000000000', { from: accounts[0], gasLimit: 1000000 });
+
+      await time.increase(time.duration.minutes(6));
+
+      assert.isTrue(
+        await this.lmPool.isActive(),
+        'isActive value is wrong'
+      );
+      const signature = await this.signer.createSignature(accounts[2], 5, proofTimeInFirstEpoch, this.lmPoolAddress);
+
+      await expectRevert(
+        this.lmPool.submitProof(signature.finalPoints, signature.nonce, signature.proofTime, signature.proof,
+          { from: accounts[2] }
+        ),
+        'Signature is not from an oracle'
+      );
+    });
+
+    it('should count points', async function() {
+      await this.lmPool.addRewards('100000000000000000000000000', { from: accounts[0], gasLimit: 1000000 });
+
+      await time.increase(time.duration.minutes(6));
+
+      assert.isTrue(
+        await this.lmPool.isActive(),
+        'isActive value is wrong'
+      );
+      const signature = await this.signer.createSignature(accounts[2], 5, proofTimeInFirstEpoch, this.lmPoolAddress);
+
+      assert.isFalse(await this.lmPoolFactory.hasRole(await this.lmPoolFactory.ORACLE_NODE.call(), this.signerAddress), 'Oracle is not correct');
+      await this.lmPoolFactory.createOracle(this.signerAddress, { from: accounts[0] });
+      assert.isTrue(await this.lmPoolFactory.hasRole(await this.lmPoolFactory.ORACLE_NODE.call(), this.signerAddress), 'Oracle is not correct');
+
+      await this.lmPool.submitProof(signature.finalPoints, signature.nonce, signature.proofTime, signature.proof,
+        { from: accounts[2], gasLimit: 1000000 }
+      );
+
+      await expectRevert(
+        this.lmPool.submitProof(signature.finalPoints, signature.nonce, signature.proofTime, signature.proof,
+          { from: accounts[2], gasLimit: 1000000 }
+        ),
+        'Nonce already used'
       );
     });
 

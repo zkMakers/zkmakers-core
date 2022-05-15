@@ -81,7 +81,7 @@ contract LMPool is ReentrancyGuard, Ownable, AccessControl {
         totalRewards = totalRewards + rewards;
     }
 
-    function submitProof(uint256 amount, uint256 nonce, uint256 proofTime, bytes calldata sig) isPoolRunning external {
+    function submitProof(uint256 amount, uint256 nonce, uint256 proofTime, bytes calldata proof) isPoolRunning external {
         require(!usedNonces[nonce], "Nonce already used");
         uint256 epoch = getEpoch(proofTime);
         require(!canClaimThisEpoch(epoch), "This epoch is already claimable");
@@ -95,7 +95,7 @@ contract LMPool is ReentrancyGuard, Ownable, AccessControl {
         // This recreates the message that was signed on the oracles
         bytes32 message = prefixed(keccak256(abi.encodePacked(msg.sender, amount, nonce, proofTime, this)));
 
-        require(AccessControl(factory).hasRole(ORACLE_NODE, recoverSigner(message, sig)), "Signature is not from an oracle");
+        require(AccessControl(factory).hasRole(ORACLE_NODE, recoverSigner(message, proof)), "Signature is not from an oracle");
 
         updatePool(epoch);
 
@@ -160,7 +160,7 @@ contract LMPool is ReentrancyGuard, Ownable, AccessControl {
 
     function canClaimThisEpoch(uint256 epoch) public view returns (bool) {
         uint256 currentEpoch = getCurrentEpoch();
-        return delayClaimEpoch + epoch >= currentEpoch;
+        return currentEpoch >= delayClaimEpoch + epoch;
     }
 
     function claim(uint256 epoch) public {
