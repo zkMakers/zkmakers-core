@@ -163,15 +163,24 @@ contract('Liquid Miners Pool', function (accounts) {
         await this.lmPool.isActive(),
         'isActive value is wrong'
       );
-      const signature = await this.signer.createSignature(accounts[2], 5, proofTimeInFirstEpoch, this.lmPoolAddress);
+      let signature = await this.signer.createSignature(accounts[2], 5, proofTimeInFirstEpoch, this.lmPoolAddress);
 
       assert.isFalse(await this.lmPoolFactory.hasRole(await this.lmPoolFactory.ORACLE_NODE.call(), this.signerAddress), 'Oracle is not correct');
       await this.lmPoolFactory.createOracle(this.signerAddress, { from: accounts[0] });
       assert.isTrue(await this.lmPoolFactory.hasRole(await this.lmPoolFactory.ORACLE_NODE.call(), this.signerAddress), 'Oracle is not correct');
 
+      assert.equal(await this.lmPool.userTotalPoints(accounts[2]), '0', 'Incorrect user points');
+      assert.equal(await this.lmPool.totalPoints(0), '0', 'Incorrect total points');
+      assert.equal(await this.lmPool.totalPoints(1), '0', 'Incorrect total points');
+
       await this.lmPool.submitProof(signature.finalPoints, signature.nonce, signature.proofTime, signature.proof,
         { from: accounts[2], gasLimit: 1000000 }
       );
+
+
+      assert.equal(await this.lmPool.userTotalPoints(accounts[2]), '5000000000000000000', 'Incorrect user points');
+      assert.equal(await this.lmPool.totalPoints(0), '5000000000000000000', 'Incorrect total points');
+      assert.equal(await this.lmPool.totalPoints(1), '0', 'Incorrect total points');
 
       await expectRevert(
         this.lmPool.submitProof(signature.finalPoints, signature.nonce, signature.proofTime, signature.proof,
@@ -179,6 +188,39 @@ contract('Liquid Miners Pool', function (accounts) {
         ),
         'Nonce already used'
       );
+
+      signature = await this.signer.createSignature(accounts[3], 5, proofTimeInFirstEpoch, this.lmPoolAddress);
+      await this.lmPool.submitProof(signature.finalPoints, signature.nonce, signature.proofTime, signature.proof,
+        { from: accounts[3], gasLimit: 1000000 }
+      );
+
+      assert.equal(await this.lmPool.userTotalPoints(accounts[2]), '5000000000000000000', 'Incorrect user points');
+      assert.equal(await this.lmPool.userTotalPoints(accounts[3]), '5000000000000000000', 'Incorrect user points');
+      assert.equal(await this.lmPool.totalPoints(0), '10000000000000000000', 'Incorrect total points');
+      assert.equal(await this.lmPool.totalPoints(1), '0', 'Incorrect total points');
+
+      await expectRevert(
+        this.lmPool.claim(0, { from: accounts[2], gasLimit: 1000000 }),
+        'This epoch is not claimable'
+      );
+      await time.increase(time.duration.days(8));
+
+      signature = await this.signer.createSignature(accounts[3], 5, proofTimeInFirstEpoch, this.lmPoolAddress);
+      await expectRevert(
+        this.lmPool.submitProof(signature.finalPoints, signature.nonce, signature.proofTime, signature.proof,
+          { from: accounts[3], gasLimit: 1000000 }
+        ),
+        'This epoch is already claimable'
+      );
+
+      assert.equal(await this.token.balanceOf(accounts[2]), '0', 'Incorrect reward balance');
+      await this.lmPool.claim(0, { from: accounts[2], gasLimit: 1000000 });
+      assert.equal((await this.token.balanceOf(accounts[2])).toString(), '15000000000000000000000000', 'Incorrect reward balance');
+
+
+      await this.lmPool.claim(0, { from: accounts[2], gasLimit: 1000000 });
+      assert.equal((await this.token.balanceOf(accounts[2])).toString(), '15000000000000000000000000', 'Incorrect reward balance');
+
     });
 
   });
