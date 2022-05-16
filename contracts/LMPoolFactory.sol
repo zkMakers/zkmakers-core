@@ -19,8 +19,12 @@ contract LMPoolFactory is ILMPoolFactory, ReentrancyGuard, Ownable, AccessContro
     // ERC20 => Accepted
     mapping(address => bool) public acceptedRewardTokens;
 
+    mapping(string => bool) public acceptedExchanges;
+
     event PoolCreated(
         address indexed pool,
+        string indexed exchange,
+        string indexed pair,
         uint256 created
     );
 
@@ -72,16 +76,30 @@ contract LMPoolFactory is ILMPoolFactory, ReentrancyGuard, Ownable, AccessContro
         fee = amount;
     }
 
-    // ToDo: Send exchange and pair
+    function addExchange(string calldata name) external {
+        require(hasRole(OWNER_ADMIN, msg.sender), "LMPoolFactory: Restricted to OWNER_ADMIN role on LMPool");
+        acceptedExchanges[name] = true;
+    }
+
+    function removeExchange(string calldata name) external {
+        require(hasRole(OWNER_ADMIN, msg.sender), "LMPoolFactory: Restricted to OWNER_ADMIN role on LMPool");
+        acceptedExchanges[name] = false;
+    }
+
     function createDynamicPool(
+        string calldata _exchange,
+        string calldata _pair,
         address _rewardToken,
         uint256 _startDate,
         uint256 _durationInEpochs
     ) external returns(address) {
         require(acceptedRewardTokens[_rewardToken], "LMPoolFactory: Reward token is not accepted.");
+        require(acceptedExchanges[_exchange], "LMPoolFactory: Exchange is not accepted.");
 
         LMPool newPool = new LMPool(
             address(this),
+            _exchange,
+            _pair,
             _rewardToken,
             _startDate,
             _durationInEpochs
@@ -91,6 +109,8 @@ contract LMPoolFactory is ILMPoolFactory, ReentrancyGuard, Ownable, AccessContro
 
         emit PoolCreated(
             address(newPool),
+            _exchange,
+            _pair,
             block.timestamp
         );
 

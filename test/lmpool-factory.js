@@ -30,15 +30,24 @@ contract('Liquid Miners Pool Factory', function (accounts) {
       this.token.address,
       { from: accounts[0] }
     );
+    
+    await this.lmPoolFactory.addExchange(
+      "gate",
+      { from: accounts[0] }
+    );
 
     // Pool
     const lmPoolAddress = await this.lmPoolFactory.createDynamicPool.call(
+      "gate",
+      "eth/usdt",
       this.token.address,
       startDate,
       duration,
       { from: accounts[0] }
     );
     const { logs } = await this.lmPoolFactory.createDynamicPool(
+      "gate",
+      "eth/usdt",
       this.token.address,
       startDate,
       duration,
