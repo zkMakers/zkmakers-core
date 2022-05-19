@@ -20,12 +20,18 @@ contract LMPoolFactory is ILMPoolFactory, ReentrancyGuard, Ownable, AccessContro
     mapping(address => bool) public acceptedRewardTokens;
 
     mapping(string => bool) public acceptedExchanges;
+    mapping(address => bool) public pools;
 
     event PoolCreated(
         address indexed pool,
         string indexed exchange,
         string indexed pair,
         uint256 created
+    );
+
+    event RewardsAddedd(
+        address indexed pool,
+        uint256 endRewardsDate
     );
 
     constructor() {
@@ -86,12 +92,22 @@ contract LMPoolFactory is ILMPoolFactory, ReentrancyGuard, Ownable, AccessContro
         acceptedExchanges[name] = false;
     }
 
+    function addRewards(address pool, uint256 amount, uint256 rewardDurationInEpochs) external {
+        require(pools[pool], "Pool not found");
+        uint256 feeAmount = (amount * fee) / 10000;
+        uint256 rewards = amount - feeAmount;
+        LMPool poolImpl = LMPool(pool);
+        IERC20(poolImpl.getRewardToken()).transferFrom(msg.sender, address(this), feeAmount);
+        IERC20(poolImpl.getRewardToken()).transferFrom(msg.sender, address(pool), rewards);
+        poolImpl.addRewards(rewards, rewardDurationInEpochs);
+        emit RewardsAddedd(pool, poolImpl.getStartDate() + poolImpl.getEpochDuration() * poolImpl.getLastEpoch());
+    }
+
     function createDynamicPool(
         string calldata _exchange,
         string calldata _pair,
         address _rewardToken,
-        uint256 _startDate,
-        uint256 _durationInEpochs
+        uint256 _startDate
     ) external returns(address) {
         require(acceptedRewardTokens[_rewardToken], "LMPoolFactory: Reward token is not accepted.");
         require(acceptedExchanges[_exchange], "LMPoolFactory: Exchange is not accepted.");
@@ -101,11 +117,11 @@ contract LMPoolFactory is ILMPoolFactory, ReentrancyGuard, Ownable, AccessContro
             _exchange,
             _pair,
             _rewardToken,
-            _startDate,
-            _durationInEpochs
+            _startDate
         );
 
         allPools.push(address(newPool));
+        pools[address(newPool)] = true;
 
         emit PoolCreated(
             address(newPool),

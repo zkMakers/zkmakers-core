@@ -42,7 +42,6 @@ contract('Liquid Miners Pool Factory', function (accounts) {
       "eth/usdt",
       this.token.address,
       startDate,
-      duration,
       { from: accounts[0] }
     );
     const { logs } = await this.lmPoolFactory.createDynamicPool(
@@ -50,7 +49,6 @@ contract('Liquid Miners Pool Factory', function (accounts) {
       "eth/usdt",
       this.token.address,
       startDate,
-      duration,
       { from: accounts[0] }
     );
 
@@ -59,7 +57,7 @@ contract('Liquid Miners Pool Factory', function (accounts) {
 
     // Approve
     this.token.approve(
-      this.lmPool.address,
+      this.lmPoolFactory.address,
       '10000000000000000000000000000000000',
       { from: accounts[0] }
     );

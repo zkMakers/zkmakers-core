@@ -31,13 +31,14 @@ contract LMPool is ReentrancyGuard, Ownable, AccessControl {
     // Epoch => Total Points
     mapping (uint256 => uint256) public totalPoints;
 
+    uint256 public lastEpoch;
+
     event Withdraw(address indexed user, uint256 amount);
     event MintPoints(address indexed user, uint256 amount);
 
     address public rewardToken;
     uint256 public tokenDecimals;
     uint256 public startDate;
-    uint256 public durationInEpochs;
     address public factory;
     uint256 public epochDuration = 7 days;
     uint256 public delayClaimEpoch = 1; // We need to wait to epoch to claim the rewards
@@ -60,8 +61,7 @@ contract LMPool is ReentrancyGuard, Ownable, AccessControl {
         string memory _exchange,
         string memory _pair,
         address _rewardToken,
-        uint256 _startDate,
-        uint256 _durationInEpochs
+        uint256 _startDate
     ) {
         factory = _factory;
         exchange = _exchange;
@@ -69,30 +69,26 @@ contract LMPool is ReentrancyGuard, Ownable, AccessControl {
         tokenDecimals = IERC20Metadata(_rewardToken).decimals();
         startDate = _startDate;
         rewardToken = _rewardToken;
-        durationInEpochs = _durationInEpochs;
         _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
 
-    function addRewards(uint256 amount) external {
-        uint256 feeAmount = (amount * ILMPoolFactory(factory).getFee()) / 10000;
-        uint256 rewards = amount - feeAmount;
-        IERC20(rewardToken).transferFrom(msg.sender, factory, feeAmount);
-        IERC20(rewardToken).transferFrom(msg.sender, address(this), rewards);
-
+    function addRewards(uint256 amount, uint256 rewardDurationInEpochs) external {
+        require(msg.sender == factory, "Only factory can add internal rewards");
         uint256 currentEpoch = getCurrentEpoch();
-        uint256 rewardsPerEpoch = rewards / (durationInEpochs - currentEpoch);
-        for (uint256 i = currentEpoch; i < durationInEpochs; i++) {
+        uint256 rewardsPerEpoch = amount / (rewardDurationInEpochs - currentEpoch);
+        for (uint256 i = currentEpoch; i < rewardDurationInEpochs; i++) {
             rewardPerEpoch[i] = rewardPerEpoch[i] + rewardsPerEpoch;
         }
-
-        totalRewards = totalRewards + rewards;
+        totalRewards = totalRewards + amount;
+        if (currentEpoch + rewardDurationInEpochs > lastEpoch) {
+            lastEpoch = currentEpoch + rewardDurationInEpochs;
+        }
     }
 
     function submitProof(uint256 amount, uint256 nonce, uint256 proofTime, bytes calldata proof) isPoolRunning external {
         require(!usedNonces[nonce], "Nonce already used");
         uint256 epoch = getEpoch(proofTime);
         require(!canClaimThisEpoch(epoch), "This epoch is already claimable");
-        require(epoch <= durationInEpochs, "Pool ended");
 
         UserInfo storage user = userInfo[msg.sender][epoch];
 
@@ -153,6 +149,22 @@ contract LMPool is ReentrancyGuard, Ownable, AccessControl {
         }
 
         return rewards;
+    }
+
+    function getRewardToken() public view returns (address) {
+        return rewardToken;
+    }
+
+    function getStartDate() public view returns (uint256) {
+        return startDate;
+    }
+    
+    function getEpochDuration() public view returns (uint256) {
+        return epochDuration;
+    }
+
+    function getLastEpoch() public view returns (uint256) {
+        return lastEpoch;
     }
 
     function getRewardsPerEpoch(uint256 epoch) public view returns (uint256) {
@@ -265,7 +277,7 @@ contract LMPool is ReentrancyGuard, Ownable, AccessControl {
     {
         return (
             totalRewards > 0 && block.timestamp >= startDate
-            && getCurrentEpoch() <= durationInEpochs
+            && getCurrentEpoch() <= lastEpoch
         );
     }
 

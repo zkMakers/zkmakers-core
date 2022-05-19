@@ -43,7 +43,6 @@ contract('Liquid Miners Pool', function (accounts) {
       "eth/usdt",
       this.token.address,
       startDate,
-      duration,
       { from: accounts[0] }
     );
     await this.lmPoolFactory.createDynamicPool(
@@ -51,7 +50,6 @@ contract('Liquid Miners Pool', function (accounts) {
       "eth/usdt",
       this.token.address,
       startDate,
-      duration,
       { from: accounts[0] }
     );
     
@@ -64,7 +62,7 @@ contract('Liquid Miners Pool', function (accounts) {
 
     // Approve
     this.token.approve(
-      this.lmPool.address,
+      this.lmPoolFactory.address,
       '10000000000000000000000000000000000',
       { from: accounts[0] }
     );
@@ -80,7 +78,7 @@ contract('Liquid Miners Pool', function (accounts) {
 
 
     it('isActive after addRewards but not starttime', async function() {
-      await this.lmPool.addRewards('100000000000000000000000000', { from: accounts[0], gasLimit: 1000000 });
+      await this.lmPoolFactory.addRewards(this.lmPoolAddress, '100000000000000000000000000', duration, { from: accounts[0], gasLimit: 1000000 });
 
       assert.isFalse(
         await this.lmPool.isActive(),
@@ -99,7 +97,7 @@ contract('Liquid Miners Pool', function (accounts) {
     });
 
     it('isActive after fund rewards and starttime', async function() {
-      await this.lmPool.addRewards('100000000000000000000000000', { from: accounts[0], gasLimit: 1000000 });
+      await this.lmPoolFactory.addRewards(this.lmPoolAddress, '100000000000000000000000000', duration, { from: accounts[0], gasLimit: 1000000 });
 
       await time.increase(time.duration.minutes(6));
 
@@ -114,7 +112,7 @@ contract('Liquid Miners Pool', function (accounts) {
   describe('Simple pool', function () {
 
     it('should throw error if we already reached claim time', async function() {
-      await this.lmPool.addRewards('100000000000000000000000000', { from: accounts[0], gasLimit: 1000000 });
+      await this.lmPoolFactory.addRewards(this.lmPoolAddress, '100000000000000000000000000', duration, { from: accounts[0], gasLimit: 1000000 });
 
       await time.increase(time.duration.minutes(6));
 
@@ -136,7 +134,7 @@ contract('Liquid Miners Pool', function (accounts) {
     });
 
     it('should throw error if proof is not from oracle', async function() {
-      await this.lmPool.addRewards('100000000000000000000000000', { from: accounts[0], gasLimit: 1000000 });
+      await this.lmPoolFactory.addRewards(this.lmPoolAddress, '100000000000000000000000000', duration, { from: accounts[0], gasLimit: 1000000 });
 
       await time.increase(time.duration.minutes(6));
 
@@ -155,7 +153,7 @@ contract('Liquid Miners Pool', function (accounts) {
     });
 
     it('should count points', async function() {
-      await this.lmPool.addRewards('100000000000000000000000000', { from: accounts[0], gasLimit: 1000000 });
+      await this.lmPoolFactory.addRewards(this.lmPoolAddress, '100000000000000000000000000', duration, { from: accounts[0], gasLimit: 1000000 });
 
       await time.increase(time.duration.minutes(6));
 
