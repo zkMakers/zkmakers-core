@@ -12,8 +12,6 @@ contract('Liquid Miners Pool Factory', function (accounts) {
 
   // Pool config
   const now = Math.floor(new Date().getTime() / 1000);
-  const startDate = now + 300;  // In 5 minutes
-  const duration = 3;
   
   beforeEach(async function () {
     // Token
@@ -41,14 +39,12 @@ contract('Liquid Miners Pool Factory', function (accounts) {
       "gate",
       "eth/usdt",
       this.token.address,
-      startDate,
       { from: accounts[0] }
     );
     const { logs } = await this.lmPoolFactory.createDynamicPool(
       "gate",
       "eth/usdt",
       this.token.address,
-      startDate,
       { from: accounts[0] }
     );
 

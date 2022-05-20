@@ -106,8 +106,7 @@ contract LMPoolFactory is ILMPoolFactory, ReentrancyGuard, Ownable, AccessContro
     function createDynamicPool(
         string calldata _exchange,
         string calldata _pair,
-        address _rewardToken,
-        uint256 _startDate
+        address _rewardToken
     ) external returns(address) {
         require(acceptedRewardTokens[_rewardToken], "LMPoolFactory: Reward token is not accepted.");
         require(acceptedExchanges[_exchange], "LMPoolFactory: Exchange is not accepted.");
@@ -116,8 +115,7 @@ contract LMPoolFactory is ILMPoolFactory, ReentrancyGuard, Ownable, AccessContro
             address(this),
             _exchange,
             _pair,
-            _rewardToken,
-            _startDate
+            _rewardToken
         );
 
         allPools.push(address(newPool));

@@ -11,7 +11,6 @@ contract('Liquid Miners Pool', function (accounts) {
   // Pool config
   const now = Math.floor(new Date().getTime() / 1000);
 
-  const startDate = now + 300;  // In 5 minutes
   const proofTimeInFirstEpoch = now + 600; // In 6 mins
   const duration = 3;
 
@@ -42,14 +41,12 @@ contract('Liquid Miners Pool', function (accounts) {
       "gate",
       "eth/usdt",
       this.token.address,
-      startDate,
       { from: accounts[0] }
     );
     await this.lmPoolFactory.createDynamicPool(
       "gate",
       "eth/usdt",
       this.token.address,
-      startDate,
       { from: accounts[0] }
     );
     
@@ -75,17 +72,6 @@ contract('Liquid Miners Pool', function (accounts) {
   });
 
   describe('Simple pool', function () {
-
-
-    it('isActive after addRewards but not starttime', async function() {
-      await this.lmPoolFactory.addRewards(this.lmPoolAddress, '100000000000000000000000000', duration, { from: accounts[0], gasLimit: 1000000 });
-
-      assert.isFalse(
-        await this.lmPool.isActive(),
-        'isActive value is wrong'
-      );
-    });
-
 
     it('isActive after starttime but not funded with rewards', async function() {
       await time.increase(time.duration.minutes(6));

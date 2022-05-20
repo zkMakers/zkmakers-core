@@ -60,14 +60,13 @@ contract LMPool is ReentrancyGuard, Ownable, AccessControl {
         address _factory,
         string memory _exchange,
         string memory _pair,
-        address _rewardToken,
-        uint256 _startDate
+        address _rewardToken
     ) {
         factory = _factory;
         exchange = _exchange;
         pair = _pair;
         tokenDecimals = IERC20Metadata(_rewardToken).decimals();
-        startDate = _startDate;
+        startDate = block.timestamp;
         rewardToken = _rewardToken;
         _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
