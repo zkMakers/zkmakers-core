@@ -101,6 +101,14 @@ contract('Liquid Miners Pool Factory', function (accounts) {
 
     });
 
+    it('should withdraw', async function() {
+      await this.lmPoolFactory.addRewards(this.lmPool.address, '100000000000000000000000000', 3, { from: accounts[0], gasLimit: 1000000 });
+      assert.equal((await this.token.balanceOf(accounts[0])).toString(), '9999999900000000000000000000000000', 'Incorrect balance');
+
+      await this.lmPoolFactory.withdraw(this.token.address, accounts[0], '10000000000000000000000000', { from: accounts[0], gasLimit: 1000000 });
+      assert.equal((await this.token.balanceOf(accounts[0])).toString(), '9999999910000000000000000000000000', 'Incorrect balance');
+    });
+
   });
 
 });

@@ -73,6 +73,7 @@ contract LMPool is ReentrancyGuard, Ownable, AccessControl {
 
     function addRewards(uint256 amount, uint256 rewardDurationInEpochs) external {
         require(msg.sender == factory, "Only factory can add internal rewards");
+        require(rewardDurationInEpochs <= 90, "Can't send more than 90 epochs at the same time");
         uint256 currentEpoch = getCurrentEpoch();
         uint256 rewardsPerEpoch = amount / (rewardDurationInEpochs - currentEpoch);
         for (uint256 i = currentEpoch; i < rewardDurationInEpochs; i++) {

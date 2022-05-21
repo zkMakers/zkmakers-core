@@ -71,6 +71,26 @@ contract('Liquid Miners Pool', function (accounts) {
     await restoreSnapshot();
   });
 
+  describe('Gas tests in simple pool', function () {
+
+    it('adding rewards for one year', async function() {
+      await this.lmPoolFactory.addRewards(this.lmPoolAddress, '100000000000000000000000000', 80, { from: accounts[0], gasLimit: 3000000 });
+      assert.isTrue(true, 'We broke');
+    });
+
+    it('claim 30 epochs', async function() {
+      const epochNumber = 5;
+      let epochs = [];
+      for (let i = 0; i < epochNumber; i++) {
+        epochs.push(i);
+      }
+      await time.increase(time.duration.days(7 * epochNumber + 1));
+      await this.lmPool.multiClaim(epochs, { from: accounts[0], gasLimit: 3000000 });
+      assert.isTrue(true, 'We broke');
+    });
+
+  });
+
   describe('Simple pool', function () {
 
     it('isActive after starttime but not funded with rewards', async function() {
@@ -183,11 +203,16 @@ contract('Liquid Miners Pool', function (accounts) {
       assert.equal(await this.lmPool.totalPoints(0), '10000000000000000000', 'Incorrect total points');
       assert.equal(await this.lmPool.totalPoints(1), '0', 'Incorrect total points');
 
+      assert.equal(await this.lmPool.getCurrentEpoch(), 0, 'Incorrect epoch');
+      assert.equal(await this.lmPool.pendingReward(accounts[2], 0), '0', 'Incorrect pending reward');
       await expectRevert(
         this.lmPool.claim(0, { from: accounts[2], gasLimit: 1000000 }),
         'This epoch is not claimable'
       );
       await time.increase(time.duration.days(8));
+
+      assert.equal(await this.lmPool.getCurrentEpoch(), 1, 'Incorrect epoch');
+      assert.equal((await this.lmPool.pendingReward(accounts[2], 0)).toString(), '15000000000000000000000000', 'Incorrect pending reward');
 
       signature = await this.signer.createSignature(accounts[3], 5, proofTimeInFirstEpoch, this.lmPoolAddress);
       await expectRevert(
