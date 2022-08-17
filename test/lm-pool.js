@@ -4,6 +4,8 @@ const { expect } = require('chai');
 const LMPoolFactory = artifacts.require("LMPoolFactory");
 const LMPool = artifacts.require("LMPool");
 const Token = artifacts.require("mocks/Token.sol");
+const PairTokenA = artifacts.require("mocks/PairTokenA.sol");
+const PairTokenB = artifacts.require("mocks/PairTokenB.sol");
 const Signer = require('./signer');
 
 contract('Liquid Miners Pool', function (accounts) {
@@ -18,6 +20,15 @@ contract('Liquid Miners Pool', function (accounts) {
 
     // Token
     this.token = await Token.new(
+      { from: accounts[0] }
+    );
+
+    //Pair Tokens
+    this.tokenA = await PairTokenA.new(
+      { from: accounts[0] }
+    );
+
+    this.tokenB = await PairTokenB.new(
       { from: accounts[0] }
     );
 
@@ -39,13 +50,15 @@ contract('Liquid Miners Pool', function (accounts) {
     // Pool
     this.lmPoolAddress = await this.lmPoolFactory.createDynamicPool.call(
       "gate",
-      "eth/usdt",
+      this.tokenA.address,
+      this.tokenB.address,
       this.token.address,
       { from: accounts[0] }
     );
     await this.lmPoolFactory.createDynamicPool(
       "gate",
-      "eth/usdt",
+      this.tokenA.address,
+      this.tokenB.address,
       this.token.address,
       { from: accounts[0] }
     );
@@ -126,13 +139,13 @@ contract('Liquid Miners Pool', function (accounts) {
         await this.lmPool.isActive(),
         'isActive value is wrong'
       );
-      const signature = await this.signer.createSignature(accounts[2], 5, proofTimeInFirstEpoch, this.lmPoolAddress);
+      const signature = await this.signer.createSignature(accounts[2], 5, proofTimeInFirstEpoch, this.lmPoolAddress,web3.utils.keccak256(accounts[2]));
 
 
       await time.increase(time.duration.days(8));
 
       await expectRevert(
-        this.lmPool.submitProof(signature.finalPoints, signature.nonce, signature.proofTime, signature.proof,
+        this.lmPool.submitProof(signature.finalPoints, signature.nonce, signature.proofTime, signature.proof,signature.uidHash,
           { from: accounts[2] }
         ),
         'This epoch is already claimable'
@@ -148,10 +161,10 @@ contract('Liquid Miners Pool', function (accounts) {
         await this.lmPool.isActive(),
         'isActive value is wrong'
       );
-      const signature = await this.signer.createSignature(accounts[2], 5, proofTimeInFirstEpoch, this.lmPoolAddress);
+      const signature = await this.signer.createSignature(accounts[2], 5, proofTimeInFirstEpoch, this.lmPoolAddress,web3.utils.keccak256(accounts[2]));
 
       await expectRevert(
-        this.lmPool.submitProof(signature.finalPoints, signature.nonce, signature.proofTime, signature.proof,
+        this.lmPool.submitProof(signature.finalPoints, signature.nonce, signature.proofTime, signature.proof,signature.uidHash,
           { from: accounts[2] }
         ),
         'Signature is not from an oracle'
@@ -167,7 +180,7 @@ contract('Liquid Miners Pool', function (accounts) {
         await this.lmPool.isActive(),
         'isActive value is wrong'
       );
-      let signature = await this.signer.createSignature(accounts[2], 5, proofTimeInFirstEpoch, this.lmPoolAddress);
+      let signature = await this.signer.createSignature(accounts[2], 5, proofTimeInFirstEpoch, this.lmPoolAddress,web3.utils.keccak256(accounts[2]));
 
       assert.isFalse(await this.lmPoolFactory.hasRole(await this.lmPoolFactory.ORACLE_NODE.call(), this.signerAddress), 'Oracle is not correct');
       await this.lmPoolFactory.createOracle(this.signerAddress, { from: accounts[0] });
@@ -177,7 +190,7 @@ contract('Liquid Miners Pool', function (accounts) {
       assert.equal(await this.lmPool.totalPoints(0), '0', 'Incorrect total points');
       assert.equal(await this.lmPool.totalPoints(1), '0', 'Incorrect total points');
 
-      await this.lmPool.submitProof(signature.finalPoints, signature.nonce, signature.proofTime, signature.proof,
+      await this.lmPool.submitProof(signature.finalPoints, signature.nonce, signature.proofTime, signature.proof,signature.uidHash,
         { from: accounts[2], gasLimit: 1000000 }
       );
 
@@ -187,14 +200,14 @@ contract('Liquid Miners Pool', function (accounts) {
       assert.equal(await this.lmPool.totalPoints(1), '0', 'Incorrect total points');
 
       await expectRevert(
-        this.lmPool.submitProof(signature.finalPoints, signature.nonce, signature.proofTime, signature.proof,
+        this.lmPool.submitProof(signature.finalPoints, signature.nonce, signature.proofTime, signature.proof,signature.uidHash,
           { from: accounts[2], gasLimit: 1000000 }
         ),
         'Nonce already used'
       );
 
-      signature = await this.signer.createSignature(accounts[3], 5, proofTimeInFirstEpoch, this.lmPoolAddress);
-      await this.lmPool.submitProof(signature.finalPoints, signature.nonce, signature.proofTime, signature.proof,
+      signature = await this.signer.createSignature(accounts[3], 5, proofTimeInFirstEpoch, this.lmPoolAddress),web3.utils.keccak256(accounts[3]);
+      await this.lmPool.submitProof(signature.finalPoints, signature.nonce, signature.proofTime, signature.proof,signature.uidHash,
         { from: accounts[3], gasLimit: 1000000 }
       );
 
@@ -214,9 +227,9 @@ contract('Liquid Miners Pool', function (accounts) {
       assert.equal(await this.lmPool.getCurrentEpoch(), 1, 'Incorrect epoch');
       assert.equal((await this.lmPool.pendingReward(accounts[2], 0)).toString(), '15000000000000000000000000', 'Incorrect pending reward');
 
-      signature = await this.signer.createSignature(accounts[3], 5, proofTimeInFirstEpoch, this.lmPoolAddress);
+      signature = await this.signer.createSignature(accounts[3], 5, proofTimeInFirstEpoch, this.lmPoolAddress,web3.utils.keccak256(accounts[3]));
       await expectRevert(
-        this.lmPool.submitProof(signature.finalPoints, signature.nonce, signature.proofTime, signature.proof,
+        this.lmPool.submitProof(signature.finalPoints, signature.nonce, signature.proofTime, signature.proof,signature.uidHash,
           { from: accounts[3], gasLimit: 1000000 }
         ),
         'This epoch is already claimable'

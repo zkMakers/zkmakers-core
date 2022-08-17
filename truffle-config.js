@@ -77,6 +77,13 @@ module.exports = {
       skipDryRun: true     // Skip dry run before migrations? (default: false for public nets )
     },
 
+    local: {
+      provider: () => new PrivateKeyProvider('5a641da66ff733b302792a2802349cffac77b981567439f05fecbe023fd2f291', 'http://127.0.0.1:7545'),      
+      network_id: "5777",
+      gas: 5500000,       
+      gasPrice: "25000000000",      
+    },
+
     // Useful for private networks
     // private: {
       // provider: () => new HDWalletProvider(mnemonic, `https://network.io`),

@@ -5,6 +5,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "./LMPool.sol";
 import "./ILMPoolFactory.sol";
 
@@ -25,7 +26,8 @@ contract LMPoolFactory is ILMPoolFactory, ReentrancyGuard, Ownable, AccessContro
     event PoolCreated(
         address indexed pool,
         string indexed exchange,
-        string indexed pair,
+        address indexed pairTokenA,
+        address pairTokenB,
         uint256 created
     );
 
@@ -104,17 +106,21 @@ contract LMPoolFactory is ILMPoolFactory, ReentrancyGuard, Ownable, AccessContro
     }
 
     function createDynamicPool(
-        string calldata _exchange,
-        string calldata _pair,
+        string calldata _exchange,        
+        address _pairTokenA,
+        address _pairTokenB,
         address _rewardToken
     ) external returns(address) {
-        require(acceptedRewardTokens[_rewardToken], "LMPoolFactory: Reward token is not accepted.");
+        require(acceptedRewardTokens[_rewardToken] || 
+                _rewardToken == _pairTokenA || 
+                _rewardToken == _pairTokenB, "LMPoolFactory: Reward token is not accepted.");
         require(acceptedExchanges[_exchange], "LMPoolFactory: Exchange is not accepted.");
 
         LMPool newPool = new LMPool(
             address(this),
             _exchange,
-            _pair,
+            _pairTokenA,
+            _pairTokenB,
             _rewardToken
         );
 
@@ -124,7 +130,8 @@ contract LMPoolFactory is ILMPoolFactory, ReentrancyGuard, Ownable, AccessContro
         emit PoolCreated(
             address(newPool),
             _exchange,
-            _pair,
+            _pairTokenA,
+            _pairTokenB,
             block.timestamp
         );
 
@@ -132,7 +139,7 @@ contract LMPoolFactory is ILMPoolFactory, ReentrancyGuard, Ownable, AccessContro
         return address(newPool);
     }
 
-    function grantPoolRole(address payable poolAddress, bytes32 role, address account) external {
+    function grantPoolRole(address poolAddress, bytes32 role, address account) external {
         require(LMPool(poolAddress).hasRole(OWNER_ADMIN, msg.sender), "LMPoolFactory: Restricted to OWNER_ADMIN role on LMPool");
         LMPool(poolAddress).grantRole(role, account);
     }

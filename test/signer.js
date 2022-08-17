@@ -4,7 +4,7 @@ class Signer {
         this.signerPrivateKey = signerPrivateKey;
     }
 
-    async createSignature(wallet, points, proofTime, poolAddress) {
+    async createSignature(wallet, points, proofTime, poolAddress,uidHash) {
         const nonce = this.generateNonce();
         const finalPoints = this.web3.utils.toWei(points + '', 'ether');
 
@@ -13,7 +13,8 @@ class Signer {
             { type: 'uint256', value: finalPoints },
             { type: 'uint256', value: nonce },
             { type: 'uint256', value: proofTime },
-            { type: 'address', value: poolAddress }
+            { type: 'address', value: poolAddress },
+            { type: 'bytes32', value: uidHash }
         );
 
         const sig = await this.sign(hash);
@@ -23,6 +24,7 @@ class Signer {
             proof: sig,
             nonce: nonce,
             proofTime: proofTime,
+            uidHash: uidHash
         };
     }
 

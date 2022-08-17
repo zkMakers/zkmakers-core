@@ -7,14 +7,17 @@ import "@openzeppelin/contracts/utils/Address.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import "./ILMPoolFactory.sol";
+import "./TransferHelper.sol";
 
 contract LMPool is ReentrancyGuard, Ownable, AccessControl {
     bytes32 public constant OWNER_ADMIN = keccak256("OWNER_ADMIN");
     bytes32 public constant ORACLE_NODE = keccak256("ORACLE_NODE");
 
     using Address for address payable;
+    using TransferHelper for IERC20;
 
     // Info of each user.
     struct UserInfo {
@@ -30,6 +33,8 @@ contract LMPool is ReentrancyGuard, Ownable, AccessControl {
     mapping (address => uint256) public userTotalPoints;
     // Epoch => Total Points
     mapping (uint256 => uint256) public totalPoints;
+    //Exchange User Unique Identifier Hash => Wallet
+    mapping (bytes32 => address) public exchangeUidUser;
 
     uint256 public lastEpoch;
 
@@ -59,12 +64,13 @@ contract LMPool is ReentrancyGuard, Ownable, AccessControl {
     constructor(
         address _factory,
         string memory _exchange,
-        string memory _pair,
+        address _pairTokenA,
+        address _pairTokenB,
         address _rewardToken
     ) {
         factory = _factory;
         exchange = _exchange;
-        pair = _pair;
+        pair = string(abi.encodePacked(ERC20(_pairTokenA).symbol(),"/",ERC20(_pairTokenB).symbol()));
         tokenDecimals = IERC20Metadata(_rewardToken).decimals();
         startDate = block.timestamp;
         rewardToken = _rewardToken;
@@ -75,7 +81,7 @@ contract LMPool is ReentrancyGuard, Ownable, AccessControl {
         require(msg.sender == factory, "Only factory can add internal rewards");
         require(rewardDurationInEpochs <= 90, "Can't send more than 90 epochs at the same time");
         uint256 currentEpoch = getCurrentEpoch();
-        uint256 rewardsPerEpoch = amount / (rewardDurationInEpochs - currentEpoch);
+        uint256 rewardsPerEpoch = amount / rewardDurationInEpochs;
         for (uint256 i = currentEpoch; i < rewardDurationInEpochs; i++) {
             rewardPerEpoch[i] = rewardPerEpoch[i] + rewardsPerEpoch;
         }
@@ -85,10 +91,17 @@ contract LMPool is ReentrancyGuard, Ownable, AccessControl {
         }
     }
 
-    function submitProof(uint256 amount, uint256 nonce, uint256 proofTime, bytes calldata proof) isPoolRunning external {
+    function submitProof(uint256 amount, uint256 nonce, uint256 proofTime, bytes calldata proof, bytes32 uidHash) isPoolRunning external {
         require(!usedNonces[nonce], "Nonce already used");
         uint256 epoch = getEpoch(proofTime);
         require(!canClaimThisEpoch(epoch), "This epoch is already claimable");
+        require(amount > 0, "Amount must be more than 0");
+
+        if (exchangeUidUser[uidHash] == address(0)){
+            exchangeUidUser[uidHash] = msg.sender;
+        }
+        
+        require(exchangeUidUser[uidHash] == msg.sender,"Only account owner can submit proof");        
 
         UserInfo storage user = userInfo[msg.sender][epoch];
 
@@ -116,9 +129,8 @@ contract LMPool is ReentrancyGuard, Ownable, AccessControl {
                 IERC20(rewardToken).transfer(address(msg.sender), pending);
             }
         }
-        if (amount > 0) {
-            user.amount = user.amount + amount;
-        }
+        
+        user.amount = user.amount + amount;
         user.rewardDebt = user.amount * accTokenPerShare[epoch] / precision;
         userTotalPoints[msg.sender] = userTotalPoints[msg.sender] + amount;
 
