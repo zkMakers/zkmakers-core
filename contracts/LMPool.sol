@@ -16,8 +16,7 @@ contract LMPool is ReentrancyGuard, Ownable, AccessControl {
     bytes32 public constant OWNER_ADMIN = keccak256("OWNER_ADMIN");
     bytes32 public constant ORACLE_NODE = keccak256("ORACLE_NODE");
 
-    using Address for address payable;
-    using TransferHelper for IERC20;
+    using Address for address payable;    
 
     // Info of each user.
     struct UserInfo {
@@ -80,6 +79,7 @@ contract LMPool is ReentrancyGuard, Ownable, AccessControl {
     function addRewards(uint256 amount, uint256 rewardDurationInEpochs) external {
         require(msg.sender == factory, "Only factory can add internal rewards");
         require(rewardDurationInEpochs <= 90, "Can't send more than 90 epochs at the same time");
+        require(rewardDurationInEpochs > 0, "Can't divide by 0 epochs");
         uint256 currentEpoch = getCurrentEpoch();
         uint256 rewardsPerEpoch = amount / rewardDurationInEpochs;
         for (uint256 i = currentEpoch; i < rewardDurationInEpochs; i++) {
@@ -126,7 +126,7 @@ contract LMPool is ReentrancyGuard, Ownable, AccessControl {
             }
 
             if (pending > 0) {
-                IERC20(rewardToken).transfer(address(msg.sender), pending);
+                TransferHelper.safeTransfer(rewardToken, address(msg.sender), pending);
             }
         }
         
@@ -201,7 +201,7 @@ contract LMPool is ReentrancyGuard, Ownable, AccessControl {
         updatePool(epoch);
         uint256 pending = (user.amount * accTokenPerShare[epoch] / 1e12) - user.rewardDebt;
         if(pending > 0) {
-            IERC20(rewardToken).transfer(address(msg.sender), pending);
+            TransferHelper.safeTransfer(rewardToken, address(msg.sender), pending);
         }
         user.rewardDebt = user.amount * accTokenPerShare[epoch] / 1e12;
 

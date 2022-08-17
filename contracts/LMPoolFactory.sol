@@ -8,6 +8,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "./LMPool.sol";
 import "./ILMPoolFactory.sol";
+import "./TransferHelper.sol";
 
 contract LMPoolFactory is ILMPoolFactory, ReentrancyGuard, Ownable, AccessControl {
     bytes32 public constant OWNER_ADMIN = keccak256("OWNER_ADMIN");
@@ -99,8 +100,8 @@ contract LMPoolFactory is ILMPoolFactory, ReentrancyGuard, Ownable, AccessContro
         uint256 feeAmount = (amount * fee) / 10000;
         uint256 rewards = amount - feeAmount;
         LMPool poolImpl = LMPool(pool);
-        IERC20(poolImpl.getRewardToken()).transferFrom(msg.sender, address(this), feeAmount);
-        IERC20(poolImpl.getRewardToken()).transferFrom(msg.sender, address(pool), rewards);
+        TransferHelper.safeTransferFrom(poolImpl.getRewardToken(), msg.sender, address(this), feeAmount);
+        TransferHelper.safeTransferFrom(poolImpl.getRewardToken(), msg.sender, address(pool), rewards);        
         poolImpl.addRewards(rewards, rewardDurationInEpochs);
         emit RewardsAddedd(pool, poolImpl.getStartDate() + poolImpl.getEpochDuration() * poolImpl.getLastEpoch());
     }
