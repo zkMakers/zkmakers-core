@@ -41,6 +41,8 @@ contract LMPool is ReentrancyGuard, Ownable, AccessControl {
     event MintPoints(address indexed user, uint256 amount);
 
     address public rewardToken;
+    address public pairTokenA;
+    address public pairTokenB;
     uint256 public tokenDecimals;
     uint256 public startDate;
     address public factory;
@@ -69,6 +71,8 @@ contract LMPool is ReentrancyGuard, Ownable, AccessControl {
     ) {
         factory = _factory;
         exchange = _exchange;
+        pairTokenA = _pairTokenA;
+        pairTokenB = _pairTokenB;
         pair = string(abi.encodePacked(ERC20(_pairTokenA).symbol(),"/",ERC20(_pairTokenB).symbol()));
         tokenDecimals = IERC20Metadata(_rewardToken).decimals();
         startDate = block.timestamp;
