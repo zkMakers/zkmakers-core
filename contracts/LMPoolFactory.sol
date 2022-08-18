@@ -14,12 +14,18 @@ contract LMPoolFactory is ILMPoolFactory, ReentrancyGuard, Ownable, AccessContro
     bytes32 public constant OWNER_ADMIN = keccak256("OWNER_ADMIN");
     bytes32 public constant ORACLE_NODE = keccak256("ORACLE_NODE");
 
+    //ID OF THE CHAIN WHERE THE FACTORY IS DEPLOYED
+    uint256 private CONTRACT_DEPLOYED_CHAIN;
+
     address[] public allPools;
 
     uint256 fee = 1000; // 10%
 
     // ERC20 => Accepted
     mapping(address => bool) public acceptedRewardTokens;
+
+    // CHAIN ID => Accepted
+    mapping(uint32 => bool) public acceptedBlockchains;
 
     mapping(string => bool) public acceptedExchanges;
     mapping(address => bool) public pools;
@@ -29,6 +35,7 @@ contract LMPoolFactory is ILMPoolFactory, ReentrancyGuard, Ownable, AccessContro
         string indexed exchange,
         address indexed pairTokenA,
         address pairTokenB,
+        uint32 chainId,
         uint256 created
     );
 
@@ -39,6 +46,15 @@ contract LMPoolFactory is ILMPoolFactory, ReentrancyGuard, Ownable, AccessContro
 
     constructor() {
         _grantRole(OWNER_ADMIN, msg.sender);
+        CONTRACT_DEPLOYED_CHAIN = getChainID();
+    }
+
+    function getChainID() internal view returns (uint256) {
+        uint256 id;
+        assembly {
+            id := chainid()
+        }
+        return id;
     }
 
     function getFee() external override view returns (uint256) {
@@ -85,6 +101,16 @@ contract LMPoolFactory is ILMPoolFactory, ReentrancyGuard, Ownable, AccessContro
         fee = amount;
     }
 
+    function addBlockchain(uint32 chainId) external {
+        require(hasRole(OWNER_ADMIN, msg.sender), "LMPoolFactory: Restricted to OWNER_ADMIN role on LMPool");
+        acceptedBlockchains[chainId] = true;
+    }
+
+    function removeBlockchain(uint32 chainId) external {
+        require(hasRole(OWNER_ADMIN, msg.sender), "LMPoolFactory: Restricted to OWNER_ADMIN role on LMPool");
+        acceptedBlockchains[chainId] = false;
+    }
+
     function addExchange(string calldata name) external {
         require(hasRole(OWNER_ADMIN, msg.sender), "LMPoolFactory: Restricted to OWNER_ADMIN role on LMPool");
         acceptedExchanges[name] = true;
@@ -100,8 +126,10 @@ contract LMPoolFactory is ILMPoolFactory, ReentrancyGuard, Ownable, AccessContro
         uint256 feeAmount = (amount * fee) / 10000;
         uint256 rewards = amount - feeAmount;
         LMPool poolImpl = LMPool(pool);
-        TransferHelper.safeTransferFrom(poolImpl.getRewardToken(), msg.sender, address(this), feeAmount);
-        TransferHelper.safeTransferFrom(poolImpl.getRewardToken(), msg.sender, address(pool), rewards);        
+        // TransferHelper.safeTransferFrom(poolImpl.getRewardToken(), msg.sender, address(this), feeAmount);
+        // TransferHelper.safeTransferFrom(poolImpl.getRewardToken(), msg.sender, address(pool), rewards);
+        IERC20(poolImpl.getRewardToken()).transferFrom(msg.sender, address(this), feeAmount);
+        IERC20(poolImpl.getRewardToken()).transferFrom(msg.sender, address(pool), rewards);
         poolImpl.addRewards(rewards, rewardDurationInEpochs);
         emit RewardsAddedd(pool, poolImpl.getStartDate() + poolImpl.getEpochDuration() * poolImpl.getLastEpoch());
     }
@@ -110,19 +138,22 @@ contract LMPoolFactory is ILMPoolFactory, ReentrancyGuard, Ownable, AccessContro
         string calldata _exchange,        
         address _pairTokenA,
         address _pairTokenB,
-        address _rewardToken
+        address _rewardToken,
+        uint32 _chainId
     ) external returns(address) {
         require(acceptedRewardTokens[_rewardToken] || 
                 _rewardToken == _pairTokenA || 
                 _rewardToken == _pairTokenB, "LMPoolFactory: Reward token is not accepted.");
         require(acceptedExchanges[_exchange], "LMPoolFactory: Exchange is not accepted.");
-
+        require(acceptedBlockchains[_chainId], "LMPoolFactory: Blockchain is not accepted.");
+        
         LMPool newPool = new LMPool(
             address(this),
             _exchange,
             _pairTokenA,
             _pairTokenB,
-            _rewardToken
+            _rewardToken,
+            _chainId
         );
 
         allPools.push(address(newPool));
@@ -133,6 +164,7 @@ contract LMPoolFactory is ILMPoolFactory, ReentrancyGuard, Ownable, AccessContro
             _exchange,
             _pairTokenA,
             _pairTokenB,
+            _chainId,
             block.timestamp
         );
 

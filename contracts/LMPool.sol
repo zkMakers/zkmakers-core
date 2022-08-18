@@ -16,6 +16,9 @@ contract LMPool is ReentrancyGuard, Ownable, AccessControl {
     bytes32 public constant OWNER_ADMIN = keccak256("OWNER_ADMIN");
     bytes32 public constant ORACLE_NODE = keccak256("ORACLE_NODE");
 
+    //ID OF THE CHAIN WHERE THE POOL IS DEPLOYED
+    uint256 private CONTRACT_DEPLOYED_CHAIN;
+
     using Address for address payable;    
 
     // Info of each user.
@@ -43,6 +46,7 @@ contract LMPool is ReentrancyGuard, Ownable, AccessControl {
     address public rewardToken;
     address public pairTokenA;
     address public pairTokenB;
+    uint256 public chainId;
     uint256 public tokenDecimals;
     uint256 public startDate;
     address public factory;
@@ -62,18 +66,31 @@ contract LMPool is ReentrancyGuard, Ownable, AccessControl {
     string public exchange;
     string public pair;
 
+    function getChainID() internal view returns (uint256) {
+        uint256 id;
+        assembly {
+            id := chainid()
+        }
+        return id;
+    }
+
     constructor(
         address _factory,
         string memory _exchange,
         address _pairTokenA,
         address _pairTokenB,
-        address _rewardToken
+        address _rewardToken,
+        uint256 _chainId
     ) {
+        CONTRACT_DEPLOYED_CHAIN = getChainID();
         factory = _factory;
         exchange = _exchange;
         pairTokenA = _pairTokenA;
         pairTokenB = _pairTokenB;
-        pair = string(abi.encodePacked(ERC20(_pairTokenA).symbol(),"/",ERC20(_pairTokenB).symbol()));
+        chainId = _chainId;
+        if (chainId == CONTRACT_DEPLOYED_CHAIN){
+            pair = string(abi.encodePacked(ERC20(_pairTokenA).symbol(),"/",ERC20(_pairTokenB).symbol()));
+        }
         tokenDecimals = IERC20Metadata(_rewardToken).decimals();
         startDate = block.timestamp;
         rewardToken = _rewardToken;
@@ -205,7 +222,8 @@ contract LMPool is ReentrancyGuard, Ownable, AccessControl {
         updatePool(epoch);
         uint256 pending = (user.amount * accTokenPerShare[epoch] / 1e12) - user.rewardDebt;
         if(pending > 0) {
-            TransferHelper.safeTransfer(rewardToken, address(msg.sender), pending);
+            IERC20(rewardToken).transfer(address(msg.sender), pending);
+            // TransferHelper.safeTransfer(rewardToken, address(msg.sender), pending);
         }
         user.rewardDebt = user.amount * accTokenPerShare[epoch] / 1e12;
 
