@@ -126,10 +126,8 @@ contract LMPoolFactory is ILMPoolFactory, ReentrancyGuard, Ownable, AccessContro
         uint256 feeAmount = (amount * fee) / 10000;
         uint256 rewards = amount - feeAmount;
         LMPool poolImpl = LMPool(pool);
-        // TransferHelper.safeTransferFrom(poolImpl.getRewardToken(), msg.sender, address(this), feeAmount);
-        // TransferHelper.safeTransferFrom(poolImpl.getRewardToken(), msg.sender, address(pool), rewards);
-        IERC20(poolImpl.getRewardToken()).transferFrom(msg.sender, address(this), feeAmount);
-        IERC20(poolImpl.getRewardToken()).transferFrom(msg.sender, address(pool), rewards);
+        TransferHelper.safeTransferFrom(poolImpl.getRewardToken(), msg.sender, address(this), feeAmount);
+        TransferHelper.safeTransferFrom(poolImpl.getRewardToken(), msg.sender, address(pool), rewards);        
         poolImpl.addRewards(rewards, rewardDurationInEpochs);
         emit RewardsAddedd(pool, poolImpl.getStartDate() + poolImpl.getEpochDuration() * poolImpl.getLastEpoch());
     }
