@@ -92,92 +92,92 @@ contract('Liquid Miners Pool', function (accounts) {
     await restoreSnapshot();
   });
 
-  // describe('Gas tests in simple pool', function () {
+  describe('Gas tests in simple pool', function () {
 
-  //   it('adding rewards for one year', async function() {
-  //     await this.lmPoolFactory.addRewards(this.lmPoolAddress, '100000000000000000000000000', 80, { from: accounts[0], gasLimit: 3000000 });
-  //     assert.isTrue(true, 'We broke');
-  //   });
+    it('adding rewards for one year', async function() {
+      await this.lmPoolFactory.addRewards(this.lmPoolAddress, '100000000000000000000000000', 80, { from: accounts[0], gasLimit: 3000000 });
+      assert.isTrue(true, 'We broke');
+    });
 
-  //   it('claim 30 epochs', async function() {
-  //     const epochNumber = 5;
-  //     let epochs = [];
-  //     for (let i = 0; i < epochNumber; i++) {
-  //       epochs.push(i);
-  //     }
-  //     await time.increase(time.duration.days(7 * epochNumber + 1));
-  //     await this.lmPool.multiClaim(epochs, { from: accounts[0], gasLimit: 3000000 });
-  //     assert.isTrue(true, 'We broke');
-  //   });
+    it('claim 30 epochs', async function() {
+      const epochNumber = 5;
+      let epochs = [];
+      for (let i = 0; i < epochNumber; i++) {
+        epochs.push(i);
+      }
+      await time.increase(time.duration.days(7 * epochNumber + 1));
+      await this.lmPool.multiClaim(epochs, { from: accounts[0], gasLimit: 3000000 });
+      assert.isTrue(true, 'We broke');
+    });
 
-  // });
-
-  // describe('Simple pool', function () {
-
-  //   it('isActive after starttime but not funded with rewards', async function() {
-  //     await time.increase(time.duration.minutes(6));
-
-  //     assert.isFalse(
-  //       await this.lmPool.isActive(),
-  //       'isActive value is wrong'
-  //     );
-  //   });
-
-  //   it('isActive after fund rewards and starttime', async function() {
-  //     await this.lmPoolFactory.addRewards(this.lmPoolAddress, '100000000000000000000000000', duration, { from: accounts[0], gasLimit: 1000000 });
-
-  //     await time.increase(time.duration.minutes(6));
-
-  //     assert.isTrue(
-  //       await this.lmPool.isActive(),
-  //       'isActive value is wrong'
-  //     );
-  //   });
-
-  // });
+  });
 
   describe('Simple pool', function () {
 
-    // it('should throw error if we already reached claim time', async function() {
-    //   await this.lmPoolFactory.addRewards(this.lmPoolAddress, '100000000000000000000000000', duration, { from: accounts[0], gasLimit: 1000000 });
+    it('isActive after starttime but not funded with rewards', async function() {
+      await time.increase(time.duration.minutes(6));
 
-    //   await time.increase(time.duration.minutes(6));
+      assert.isFalse(
+        await this.lmPool.isActive(),
+        'isActive value is wrong'
+      );
+    });
 
-    //   assert.isTrue(
-    //     await this.lmPool.isActive(),
-    //     'isActive value is wrong'
-    //   );
-    //   const signature = await this.signer.createSignature(accounts[2], 5, proofTimeInFirstEpoch, this.lmPoolAddress,web3.utils.keccak256(accounts[2]));
+    it('isActive after fund rewards and starttime', async function() {
+      await this.lmPoolFactory.addRewards(this.lmPoolAddress, '100000000000000000000000000', duration, { from: accounts[0], gasLimit: 1000000 });
+
+      await time.increase(time.duration.minutes(6));
+
+      assert.isTrue(
+        await this.lmPool.isActive(),
+        'isActive value is wrong'
+      );
+    });
+
+  });
+
+  describe('Simple pool', function () {
+
+    it('should throw error if we already reached claim time', async function() {
+      await this.lmPoolFactory.addRewards(this.lmPoolAddress, '100000000000000000000000000', duration, { from: accounts[0], gasLimit: 1000000 });
+
+      await time.increase(time.duration.minutes(6));
+
+      assert.isTrue(
+        await this.lmPool.isActive(),
+        'isActive value is wrong'
+      );
+      const signature = await this.signer.createSignature(accounts[2], 5, proofTimeInFirstEpoch, this.lmPoolAddress,web3.utils.keccak256(accounts[2]));
 
 
-    //   await time.increase(time.duration.days(8));
+      await time.increase(time.duration.days(8));
 
-    //   await expectRevert(
-    //     this.lmPool.submitProof(signature.finalPoints, signature.nonce, signature.proofTime, signature.proof,signature.uidHash,
-    //       { from: accounts[2] }
-    //     ),
-    //     'This epoch is already claimable'
-    //   );
-    // });
+      await expectRevert(
+        this.lmPool.submitProof(signature.finalPoints, signature.nonce, signature.proofTime, signature.proof,signature.uidHash,
+          { from: accounts[2] }
+        ),
+        'This epoch is already claimable'
+      );
+    });
 
-    // it('should throw error if proof is not from oracle', async function() {
-    //   await this.lmPoolFactory.addRewards(this.lmPoolAddress, '100000000000000000000000000', duration, { from: accounts[0], gasLimit: 1000000 });
+    it('should throw error if proof is not from oracle', async function() {
+      await this.lmPoolFactory.addRewards(this.lmPoolAddress, '100000000000000000000000000', duration, { from: accounts[0], gasLimit: 1000000 });
 
-    //   await time.increase(time.duration.minutes(6));
+      await time.increase(time.duration.minutes(6));
 
-    //   assert.isTrue(
-    //     await this.lmPool.isActive(),
-    //     'isActive value is wrong'
-    //   );
-    //   const signature = await this.signer.createSignature(accounts[2], 5, proofTimeInFirstEpoch, this.lmPoolAddress,web3.utils.keccak256(accounts[2]));
+      assert.isTrue(
+        await this.lmPool.isActive(),
+        'isActive value is wrong'
+      );
+      const signature = await this.signer.createSignature(accounts[2], 5, proofTimeInFirstEpoch, this.lmPoolAddress,web3.utils.keccak256(accounts[2]));
 
-    //   await expectRevert(
-    //     this.lmPool.submitProof(signature.finalPoints, signature.nonce, signature.proofTime, signature.proof,signature.uidHash,
-    //       { from: accounts[2] }
-    //     ),
-    //     'Signature is not from an oracle'
-    //   );
-    // });
+      await expectRevert(
+        this.lmPool.submitProof(signature.finalPoints, signature.nonce, signature.proofTime, signature.proof,signature.uidHash,
+          { from: accounts[2] }
+        ),
+        'Signature is not from an oracle'
+      );
+    });
 
     it('should count points', async function() {
       await this.lmPoolFactory.addRewards(this.lmPoolAddress, '100000000000000000000000000', duration, { from: accounts[0], gasLimit: 1000000 });
