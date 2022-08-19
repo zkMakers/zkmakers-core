@@ -18,8 +18,12 @@ contract LMPoolFactory is ILMPoolFactory, ReentrancyGuard, Ownable, AccessContro
     uint256 private CONTRACT_DEPLOYED_CHAIN;
 
     address[] public allPools;
-
+    
+    //Fee for reward token
     uint256 fee = 1000; // 10%
+    
+    //Fee for reward with custom token
+    uint256 customTokenFee = 2000; // 2%
 
     // ERC20 => Accepted
     mapping(address => bool) public acceptedRewardTokens;
@@ -101,6 +105,11 @@ contract LMPoolFactory is ILMPoolFactory, ReentrancyGuard, Ownable, AccessContro
         fee = amount;
     }
 
+    function setCustomTokenFee(uint256 amount) external {
+        require(hasRole(OWNER_ADMIN, msg.sender), "LMPoolFactory: Restricted to OWNER_ADMIN role on LMPool");
+        customTokenFee = amount;
+    }
+
     function addBlockchain(uint32 chainId) external {
         require(hasRole(OWNER_ADMIN, msg.sender), "LMPoolFactory: Restricted to OWNER_ADMIN role on LMPool");
         acceptedBlockchains[chainId] = true;
@@ -144,6 +153,11 @@ contract LMPoolFactory is ILMPoolFactory, ReentrancyGuard, Ownable, AccessContro
                 _rewardToken == _pairTokenB, "LMPoolFactory: Reward token is not accepted.");
         require(acceptedExchanges[_exchange], "LMPoolFactory: Exchange is not accepted.");
         require(acceptedBlockchains[_chainId], "LMPoolFactory: Blockchain is not accepted.");
+
+        //If reward token is one of the pair, the fee is the customTokenFee
+        if (!acceptedRewardTokens[_rewardToken]){
+            fee = customTokenFee;
+        }
         
         LMPool newPool = new LMPool(
             address(this),

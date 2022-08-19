@@ -54,6 +54,14 @@ contract LMPool is ReentrancyGuard, Ownable, AccessControl {
     uint256 public delayClaimEpoch = 1; // We need to wait to epoch to claim the rewards
     uint256 public totalRewards;
 
+    uint256 promotersFee = 100; // 1%
+    //Amount available for promoters
+    uint256 public promotersTotalRewards;
+    //Promoter => Contribution amount
+    mapping(address => uint256) promoterContribution;
+    
+    uint256 promotersTotalContribution;
+
     mapping(uint256 => uint256) public rewardPerEpoch;
 
     mapping(uint256 => bool) public usedNonces;
@@ -102,6 +110,12 @@ contract LMPool is ReentrancyGuard, Ownable, AccessControl {
         require(rewardDurationInEpochs <= 90, "Can't send more than 90 epochs at the same time");
         require(rewardDurationInEpochs > 0, "Can't divide by 0 epochs");
         uint256 currentEpoch = getCurrentEpoch();
+        
+        //Calculates amount of rewards for promoters
+        uint256 promotersRewards = (amount * promotersFee) / 10000;
+        promotersTotalRewards += promotersRewards;
+        amount -= promotersRewards;
+        
         uint256 rewardsPerEpoch = amount / rewardDurationInEpochs;
         for (uint256 i = currentEpoch; i < rewardDurationInEpochs; i++) {
             rewardPerEpoch[i] = rewardPerEpoch[i] + rewardsPerEpoch;
@@ -112,11 +126,11 @@ contract LMPool is ReentrancyGuard, Ownable, AccessControl {
         }
     }
 
-    function submitProof(uint256 amount, uint256 nonce, uint256 proofTime, bytes calldata proof, bytes32 uidHash) isPoolRunning external {
+    function submitProof(uint256 amount, uint256 nonce, uint256 proofTime, bytes calldata proof, bytes32 uidHash, address promoter) isPoolRunning external {
         require(!usedNonces[nonce], "Nonce already used");
         uint256 epoch = getEpoch(proofTime);
         require(!canClaimThisEpoch(epoch), "This epoch is already claimable");
-        require(amount > 0, "Amount must be more than 0");
+        require(amount > 0, "Amount must be more than 0");        
 
         if (exchangeUidUser[uidHash] == address(0)){
             exchangeUidUser[uidHash] = msg.sender;
@@ -157,7 +171,27 @@ contract LMPool is ReentrancyGuard, Ownable, AccessControl {
 
         totalPoints[epoch] = totalPoints[epoch] + amount;
 
+        //Update promoter balance & promoters total balance
+        promoterContribution[promoter] += amount;
+        promotersTotalContribution += amount;
+
         emit MintPoints(msg.sender, amount);
+    }
+
+    function claimRebateRewards() public {
+        require(promoterContribution[msg.sender] > 0, "No contribution made by the promoter");
+        
+        uint256 percentage = promoterContribution[msg.sender] * 100 / promotersTotalContribution;
+        uint256 amount = promotersTotalRewards * percentage / 100;
+
+        TransferHelper.safeTransfer(rewardToken, address(msg.sender), amount);
+
+        //Update balances
+        promotersTotalContribution -= promoterContribution[msg.sender];
+        promoterContribution[msg.sender] = 0;
+        promotersTotalRewards -= amount;
+
+        emit Withdraw(msg.sender, amount);
     }
 
     function pendingReward(address _user, uint256 epoch) external view returns (uint256) {
@@ -222,8 +256,7 @@ contract LMPool is ReentrancyGuard, Ownable, AccessControl {
         updatePool(epoch);
         uint256 pending = (user.amount * accTokenPerShare[epoch] / 1e12) - user.rewardDebt;
         if(pending > 0) {
-            IERC20(rewardToken).transfer(address(msg.sender), pending);
-            // TransferHelper.safeTransfer(rewardToken, address(msg.sender), pending);
+            TransferHelper.safeTransfer(rewardToken, address(msg.sender), pending);
         }
         user.rewardDebt = user.amount * accTokenPerShare[epoch] / 1e12;
 
