@@ -21,6 +21,9 @@ contract LMPoolFactory is ILMPoolFactory, ReentrancyGuard, Ownable, AccessContro
     
     //Fee for reward token
     uint256 fee = 1000; // 10%
+
+    //Promoters fee
+    uint256 promotersFee = 100; // 1%
     
     //Fee for reward with custom token
     uint256 customTokenFee = 2000; // 2%
@@ -133,11 +136,16 @@ contract LMPoolFactory is ILMPoolFactory, ReentrancyGuard, Ownable, AccessContro
     function addRewards(address pool, uint256 amount, uint256 rewardDurationInEpochs) external {
         require(pools[pool], "Pool not found");
         uint256 feeAmount = (amount * fee) / 10000;
-        uint256 rewards = amount - feeAmount;
+        
+        //Calculates amount of rewards for promoters
+        uint256 promotersRewards = (amount * promotersFee) / 10000;
+
+        uint256 rewards = amount - feeAmount - promotersRewards;
+
         LMPool poolImpl = LMPool(pool);
         TransferHelper.safeTransferFrom(poolImpl.getRewardToken(), msg.sender, address(this), feeAmount);
-        TransferHelper.safeTransferFrom(poolImpl.getRewardToken(), msg.sender, address(pool), rewards);        
-        poolImpl.addRewards(rewards, rewardDurationInEpochs);
+        TransferHelper.safeTransferFrom(poolImpl.getRewardToken(), msg.sender, address(pool), (rewards + promotersRewards));        
+        poolImpl.addRewards(rewards, rewardDurationInEpochs, promotersRewards);
         emit RewardsAddedd(pool, poolImpl.getStartDate() + poolImpl.getEpochDuration() * poolImpl.getLastEpoch());
     }
 

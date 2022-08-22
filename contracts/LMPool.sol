@@ -53,14 +53,13 @@ contract LMPool is ReentrancyGuard, Ownable, AccessControl {
     uint256 public epochDuration = 7 days;
     uint256 public delayClaimEpoch = 1; // We need to wait to epoch to claim the rewards
     uint256 public totalRewards;
-
-    uint256 promotersFee = 100; // 1%
+    
     //Amount available for promoters
     uint256 public promotersTotalRewards;
     //Promoter => Contribution amount
-    mapping(address => uint256) promoterContribution;
+    mapping(address => uint256) public promoterContribution;
     
-    uint256 promotersTotalContribution;
+    uint256 public promotersTotalContribution;
 
     mapping(uint256 => uint256) public rewardPerEpoch;
 
@@ -105,16 +104,13 @@ contract LMPool is ReentrancyGuard, Ownable, AccessControl {
         _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
 
-    function addRewards(uint256 amount, uint256 rewardDurationInEpochs) external {
+    function addRewards(uint256 amount, uint256 rewardDurationInEpochs, uint256 promotersRewards) external {
         require(msg.sender == factory, "Only factory can add internal rewards");
         require(rewardDurationInEpochs <= 90, "Can't send more than 90 epochs at the same time");
         require(rewardDurationInEpochs > 0, "Can't divide by 0 epochs");
         uint256 currentEpoch = getCurrentEpoch();
-        
-        //Calculates amount of rewards for promoters
-        uint256 promotersRewards = (amount * promotersFee) / 10000;
-        promotersTotalRewards += promotersRewards;
-        amount -= promotersRewards;
+                
+        promotersTotalRewards += promotersRewards;       
         
         uint256 rewardsPerEpoch = amount / rewardDurationInEpochs;
         for (uint256 i = currentEpoch; i < rewardDurationInEpochs; i++) {
@@ -144,7 +140,7 @@ contract LMPool is ReentrancyGuard, Ownable, AccessControl {
         lastProofTime[msg.sender] = proofTime;
 
         // This recreates the message that was signed on the oracles
-        bytes32 message = prefixed(keccak256(abi.encodePacked(msg.sender, amount, nonce, proofTime, this)));
+        bytes32 message = prefixed(keccak256(abi.encodePacked(msg.sender, amount, nonce, proofTime, this,uidHash)));
 
         require(AccessControl(factory).hasRole(ORACLE_NODE, recoverSigner(message, proof)), "Signature is not from an oracle");
 
