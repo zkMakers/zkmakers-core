@@ -1,5 +1,5 @@
 const { expectRevert, expectEvent, BN, time, ether, balance } = require('@openzeppelin/test-helpers');
-const { expect } = require('chai');
+const { expect, assert } = require('chai');
 
 const LMPoolFactory = artifacts.require("LMPoolFactory");
 const LMPool = artifacts.require("LMPool");
@@ -98,7 +98,7 @@ contract('Liquid Miners Pool', function (accounts) {
   describe('Gas tests in simple pool', function () {
 
     it('adding rewards for one year', async function() {
-      await this.lmPoolFactory.addRewards(this.lmPoolAddress, '100000000000000000000000000', 80, { from: accounts[0], gasLimit: 3000000 });
+      await this.lmPoolFactory.addRewards(this.lmPoolAddress, '100000000000000000000000000', 52, { from: accounts[0], gasLimit: 3000000 });
       assert.isTrue(true, 'We broke');
     });
 
@@ -291,9 +291,9 @@ contract('Liquid Miners Pool', function (accounts) {
     });
 
     it('One promoter takes 100% of the rewards', async function() {
-      await this.lmPoolFactory.addRewards(this.lmPoolAddress, '1000000000000000000000000', duration, { from: accounts[0], gasLimit: 1000000 });
-      assert.equal((await this.token.balanceOf(this.lmPoolAddress)).toString(), '900000000000000000000000', 'Incorrect pool balance');
-      assert.equal((await this.lmPool.promotersTotalRewards()).toString(), '10000000000000000000000', 'Incorrect promoters balance');
+      await this.lmPoolFactory.addRewards(this.lmPoolAddress, '3000000000000000000000000', duration, { from: accounts[0], gasLimit: 1000000 });
+      assert.equal((await this.token.balanceOf(this.lmPoolAddress)).toString(), '2700000000000000000000000', 'Incorrect pool balance');
+      assert.equal((await this.lmPool.promotersTotalRewards()).toString(), '30000000000000000000000', 'Incorrect promoters balance');
       
       await time.increase(time.duration.minutes(6));
 
@@ -315,17 +315,21 @@ contract('Liquid Miners Pool', function (accounts) {
         { from: accounts[2], gasLimit: 1000000 }
       );
 
-      assert.equal(await this.lmPool.promoterContribution(this.promoterAddress), signature.finalPoints, 'Incorrect promoter contribution');
+      let epoch = await this.lmPool.getEpoch(signature.proofTime);
+
+      assert.equal(await this.lmPool.getPromoterEpochContribution(this.promoterAddress,epoch), signature.finalPoints, 'Incorrect promoter contribution');
+
+      await time.increase(time.duration.days(8));
 
       assert.equal(await this.token.balanceOf(this.promoterAddress), '0', 'Incorrect promoter balance');      
-      await this.lmPool.claimRebateRewards({ from: this.promoterAddress, gasLimit: 1000000 });
+      await this.lmPool.claimRebateRewards(epoch,{ from: this.promoterAddress, gasLimit: 1000000 });
       assert.equal((await this.token.balanceOf(this.promoterAddress)).toString(), '10000000000000000000000', 'Incorrect promoter balance');
     });
 
     it('Two promoters takes 50% of the rewards each', async function() {
-      await this.lmPoolFactory.addRewards(this.lmPoolAddress, '1000000000000000000000000', duration, { from: accounts[0], gasLimit: 1000000 });
-      assert.equal((await this.token.balanceOf(this.lmPoolAddress)).toString(), '900000000000000000000000', 'Incorrect pool balance');
-      assert.equal((await this.lmPool.promotersTotalRewards()).toString(), '10000000000000000000000', 'Incorrect promoters balance');
+      await this.lmPoolFactory.addRewards(this.lmPoolAddress, '3000000000000000000000000', duration, { from: accounts[0], gasLimit: 1000000 });
+      assert.equal((await this.token.balanceOf(this.lmPoolAddress)).toString(), '2700000000000000000000000', 'Incorrect pool balance');
+      assert.equal((await this.lmPool.promotersTotalRewards()).toString(), '30000000000000000000000', 'Incorrect promoters balance');
       
       await time.increase(time.duration.minutes(6));
 
@@ -352,15 +356,20 @@ contract('Liquid Miners Pool', function (accounts) {
         { from: accounts[3], gasLimit: 1000000 }
       );
 
-      assert.equal((await this.lmPool.promoterContribution(this.promoterAddress)).toString(), '5000000000000000000', 'Incorrect promoter contribution');
-      assert.equal((await this.lmPool.promoterContribution(accounts[5])).toString(), '5000000000000000000', 'Incorrect promoter contribution');
+      let epoch = await this.lmPool.getEpoch(signature.proofTime);      
+
+      assert.equal((await this.lmPool.getPromoterEpochContribution(this.promoterAddress,epoch)).toString(), '5000000000000000000', 'Incorrect promoter contribution');
+      assert.equal((await this.lmPool.getPromoterEpochContribution(accounts[5],epoch)).toString(), '5000000000000000000', 'Incorrect promoter contribution');
+      assert.equal((await this.lmPool.getPromotersEpochTotalContribution(epoch)).toString(),'10000000000000000000','Incorrect promoters epoch total contribution');
+
+      await time.increase(time.duration.days(8));
 
       assert.equal(await this.token.balanceOf(this.promoterAddress), '0', 'Incorrect promoter balance');
-      await this.lmPool.claimRebateRewards({ from: this.promoterAddress, gasLimit: 1000000 });
+      await this.lmPool.claimRebateRewards(epoch,{ from: this.promoterAddress, gasLimit: 1000000 });
       assert.equal((await this.token.balanceOf(this.promoterAddress)).toString(), '5000000000000000000000', 'Incorrect promoter balance');
       
       assert.equal(await this.token.balanceOf(accounts[5]), '0', 'Incorrect promoter balance');
-      await this.lmPool.claimRebateRewards({ from: accounts[5], gasLimit: 1000000 });
+      await this.lmPool.claimRebateRewards(epoch,{ from: accounts[5], gasLimit: 1000000 });
       assert.equal((await this.token.balanceOf(accounts[5])).toString(), '5000000000000000000000', 'Incorrect promoter balance');
     });    
   });

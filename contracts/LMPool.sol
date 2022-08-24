@@ -194,8 +194,7 @@ contract LMPool is ReentrancyGuard, Ownable, AccessControl {
 
         TransferHelper.safeTransfer(rewardToken, address(msg.sender), amount);
 
-        //Update balances
-        promotersEpochTotalContribution[epoch] -= promoterEpochContribution[msg.sender][epoch];
+        //Update balances        
         promoterEpochContribution[msg.sender][epoch] = 0;
         promotersTotalRewards -= amount;
 
@@ -253,6 +252,10 @@ contract LMPool is ReentrancyGuard, Ownable, AccessControl {
 
     function getPromoterEpochContribution(address promoter,uint256 epoch) public view returns (uint256) {
         return promoterEpochContribution[promoter][epoch];
+    }
+
+    function getPromotersEpochTotalContribution(uint256 epoch) public view returns (uint256) {
+        return promotersEpochTotalContribution[epoch];
     }
 
     function multiClaim(uint256[] calldata epochs) external {
