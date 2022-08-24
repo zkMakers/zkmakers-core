@@ -135,14 +135,15 @@ contract LMPoolFactory is ILMPoolFactory, ReentrancyGuard, Ownable, AccessContro
 
     function addRewards(address pool, uint256 amount, uint256 rewardDurationInEpochs) external {
         require(pools[pool], "Pool not found");
-        uint256 feeAmount = (amount * fee) / 10000;
+        LMPool poolImpl = LMPool(pool);
+        uint256 poolFee = poolImpl.getFee();
+        uint256 feeAmount = (amount * poolFee) / 10000;
         
         //Calculates amount of rewards for promoters
         uint256 promotersRewards = (amount * promotersFee) / 10000;
 
         uint256 rewards = amount - feeAmount - promotersRewards;
-
-        LMPool poolImpl = LMPool(pool);
+        
         TransferHelper.safeTransferFrom(poolImpl.getRewardToken(), msg.sender, address(this), feeAmount);
         TransferHelper.safeTransferFrom(poolImpl.getRewardToken(), msg.sender, address(pool), (rewards + promotersRewards));        
         poolImpl.addRewards(rewards, rewardDurationInEpochs, promotersRewards);
@@ -156,15 +157,17 @@ contract LMPoolFactory is ILMPoolFactory, ReentrancyGuard, Ownable, AccessContro
         address _rewardToken,
         uint32 _chainId
     ) external returns(address) {
-        require(acceptedRewardTokens[_rewardToken] || 
+        require(acceptedRewardTokens[_rewardToken] ||
+                (_chainId == CONTRACT_DEPLOYED_CHAIN &&
                 _rewardToken == _pairTokenA || 
-                _rewardToken == _pairTokenB, "LMPoolFactory: Reward token is not accepted.");
+                _rewardToken == _pairTokenB), "LMPoolFactory: Reward token is not accepted.");
         require(acceptedExchanges[_exchange], "LMPoolFactory: Exchange is not accepted.");
         require(acceptedBlockchains[_chainId], "LMPoolFactory: Blockchain is not accepted.");
+        uint256 poolFee = fee;
 
-        //If reward token is one of the pair, the fee is the customTokenFee
+        //If reward token is one of the pair, the pool fee is the customTokenFee
         if (!acceptedRewardTokens[_rewardToken]){
-            fee = customTokenFee;
+            poolFee = customTokenFee;
         }
         
         LMPool newPool = new LMPool(
@@ -173,7 +176,8 @@ contract LMPoolFactory is ILMPoolFactory, ReentrancyGuard, Ownable, AccessContro
             _pairTokenA,
             _pairTokenB,
             _rewardToken,
-            _chainId
+            _chainId,
+            poolFee
         );
 
         allPools.push(address(newPool));

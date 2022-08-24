@@ -285,7 +285,9 @@ contract('Liquid Miners Pool', function (accounts) {
         { from: accounts[2], gasLimit: 1000000 }
       );
 
-      assert.equal(await this.lmPool.promoterContribution(this.promoterAddress), signature.finalPoints, 'Incorrect promoter contribution');
+      let epoch = await this.lmPool.getEpoch(signature.proofTime);
+
+      assert.equal(await this.lmPool.getPromoterEpochContribution(this.promoterAddress,epoch), signature.finalPoints, 'Incorrect promoter contribution');
     });
 
     it('One promoter takes 100% of the rewards', async function() {

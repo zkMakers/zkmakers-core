@@ -53,13 +53,17 @@ contract LMPool is ReentrancyGuard, Ownable, AccessControl {
     uint256 public epochDuration = 7 days;
     uint256 public delayClaimEpoch = 1; // We need to wait to epoch to claim the rewards
     uint256 public totalRewards;
+    uint256 public fee;
     
     //Amount available for promoters
     uint256 public promotersTotalRewards;
-    //Promoter => Contribution amount
-    mapping(address => uint256) public promoterContribution;
+
+    mapping(uint256 => uint256) public promotersRewardPerEpoch;
+
+    //Promoter => Epoch => Contribution amount
+    mapping(address => mapping (uint256 => uint256)) public promoterEpochContribution;
     
-    uint256 public promotersTotalContribution;
+    mapping (uint256 => uint256) public promotersEpochTotalContribution;
 
     mapping(uint256 => uint256) public rewardPerEpoch;
 
@@ -87,7 +91,8 @@ contract LMPool is ReentrancyGuard, Ownable, AccessControl {
         address _pairTokenA,
         address _pairTokenB,
         address _rewardToken,
-        uint256 _chainId
+        uint256 _chainId,
+        uint256 _fee
     ) {
         CONTRACT_DEPLOYED_CHAIN = getChainID();
         factory = _factory;
@@ -95,6 +100,7 @@ contract LMPool is ReentrancyGuard, Ownable, AccessControl {
         pairTokenA = _pairTokenA;
         pairTokenB = _pairTokenB;
         chainId = _chainId;
+        fee = _fee;
         if (chainId == CONTRACT_DEPLOYED_CHAIN){
             pair = string(abi.encodePacked(ERC20(_pairTokenA).symbol(),"/",ERC20(_pairTokenB).symbol()));
         }
@@ -110,7 +116,12 @@ contract LMPool is ReentrancyGuard, Ownable, AccessControl {
         require(rewardDurationInEpochs > 0, "Can't divide by 0 epochs");
         uint256 currentEpoch = getCurrentEpoch();
                 
-        promotersTotalRewards += promotersRewards;       
+        
+        uint256 promotersRewardsPerEpoch = promotersRewards / rewardDurationInEpochs;
+        for (uint256 i = currentEpoch; i < rewardDurationInEpochs; i++) {
+            promotersRewardPerEpoch[i] += promotersRewardsPerEpoch;
+        }
+        promotersTotalRewards += promotersRewards;
         
         uint256 rewardsPerEpoch = amount / rewardDurationInEpochs;
         for (uint256 i = currentEpoch; i < rewardDurationInEpochs; i++) {
@@ -167,24 +178,25 @@ contract LMPool is ReentrancyGuard, Ownable, AccessControl {
 
         totalPoints[epoch] = totalPoints[epoch] + amount;
 
-        //Update promoter balance & promoters total balance
-        promoterContribution[promoter] += amount;
-        promotersTotalContribution += amount;
+        //Update promoter epoch balance & promoters epoch total balance
+        promoterEpochContribution[promoter][epoch] += amount;
+        promotersEpochTotalContribution[epoch] += amount;
 
         emit MintPoints(msg.sender, amount);
     }
 
-    function claimRebateRewards() public {
-        require(promoterContribution[msg.sender] > 0, "No contribution made by the promoter");
+    function claimRebateRewards(uint256 epoch) public {
+        require(canClaimThisEpoch(epoch), "This epoch is not claimable");
+        require(promoterEpochContribution[msg.sender][epoch] > 0, "No rewards to claim in the given epoch");
         
-        uint256 percentage = promoterContribution[msg.sender] * 100 / promotersTotalContribution;
-        uint256 amount = promotersTotalRewards * percentage / 100;
+        uint256 percentage = promoterEpochContribution[msg.sender][epoch] * 100 / promotersEpochTotalContribution[epoch];
+        uint256 amount = promotersRewardPerEpoch[epoch] * percentage / 100;
 
         TransferHelper.safeTransfer(rewardToken, address(msg.sender), amount);
 
         //Update balances
-        promotersTotalContribution -= promoterContribution[msg.sender];
-        promoterContribution[msg.sender] = 0;
+        promotersEpochTotalContribution[epoch] -= promoterEpochContribution[msg.sender][epoch];
+        promoterEpochContribution[msg.sender][epoch] = 0;
         promotersTotalRewards -= amount;
 
         emit Withdraw(msg.sender, amount);
@@ -207,11 +219,16 @@ contract LMPool is ReentrancyGuard, Ownable, AccessControl {
 
         if (remainingRewards == 0) {
             rewards = 0;
-        } else if (rewards > remainingRewards) {
+                } else if (rewards > remainingRewards) {
             rewards = remainingRewards;
         }
 
         return rewards;
+    }
+
+
+    function getFee() public view returns (uint256) {
+        return fee;
     }
 
     function getRewardToken() public view returns (address) {
@@ -232,6 +249,10 @@ contract LMPool is ReentrancyGuard, Ownable, AccessControl {
 
     function getRewardsPerEpoch(uint256 epoch) public view returns (uint256) {
         return rewardPerEpoch[epoch];
+    }
+
+    function getPromoterEpochContribution(address promoter,uint256 epoch) public view returns (uint256) {
+        return promoterEpochContribution[promoter][epoch];
     }
 
     function multiClaim(uint256[] calldata epochs) external {
