@@ -52,8 +52,7 @@ contract LMPool is ReentrancyGuard, Ownable, AccessControl {
     address public factory;
     uint256 public epochDuration = 7 days;
     uint256 public delayClaimEpoch = 1; // We need to wait to epoch to claim the rewards
-    uint256 public totalRewards;
-    uint256 public fee;
+    uint256 public totalRewards;    
     
     //Amount available for promoters
     uint256 public promotersTotalRewards;
@@ -91,8 +90,7 @@ contract LMPool is ReentrancyGuard, Ownable, AccessControl {
         address _pairTokenA,
         address _pairTokenB,
         address _rewardToken,
-        uint256 _chainId,
-        uint256 _fee
+        uint256 _chainId        
     ) {
         CONTRACT_DEPLOYED_CHAIN = getChainID();
         factory = _factory;
@@ -100,7 +98,6 @@ contract LMPool is ReentrancyGuard, Ownable, AccessControl {
         pairTokenA = _pairTokenA;
         pairTokenB = _pairTokenB;
         chainId = _chainId;
-        fee = _fee;
         if (chainId == CONTRACT_DEPLOYED_CHAIN){
             pair = string(abi.encodePacked(ERC20(_pairTokenA).symbol(),"/",ERC20(_pairTokenB).symbol()));
         }
@@ -223,11 +220,6 @@ contract LMPool is ReentrancyGuard, Ownable, AccessControl {
         }
 
         return rewards;
-    }
-
-
-    function getFee() public view returns (uint256) {
-        return fee;
     }
 
     function getRewardToken() public view returns (address) {

@@ -136,7 +136,10 @@ contract LMPoolFactory is ILMPoolFactory, ReentrancyGuard, Ownable, AccessContro
     function addRewards(address pool, uint256 amount, uint256 rewardDurationInEpochs) external {
         require(pools[pool], "Pool not found");
         LMPool poolImpl = LMPool(pool);
-        uint256 poolFee = poolImpl.getFee();
+        address rewardToken = poolImpl.getRewardToken();
+        
+        //If reward token is one of the pair, the pool fee is the customTokenFee
+        uint256 poolFee = acceptedRewardTokens[rewardToken] ? fee : customTokenFee;        
         uint256 feeAmount = (amount * poolFee) / 10000;
         
         //Calculates amount of rewards for promoters
@@ -163,21 +166,14 @@ contract LMPoolFactory is ILMPoolFactory, ReentrancyGuard, Ownable, AccessContro
                 _rewardToken == _pairTokenB), "LMPoolFactory: Reward token is not accepted.");
         require(acceptedExchanges[_exchange], "LMPoolFactory: Exchange is not accepted.");
         require(acceptedBlockchains[_chainId], "LMPoolFactory: Blockchain is not accepted.");
-        uint256 poolFee = fee;
-
-        //If reward token is one of the pair, the pool fee is the customTokenFee
-        if (!acceptedRewardTokens[_rewardToken]){
-            poolFee = customTokenFee;
-        }
-        
+               
         LMPool newPool = new LMPool(
             address(this),
             _exchange,
             _pairTokenA,
             _pairTokenB,
             _rewardToken,
-            _chainId,
-            poolFee
+            _chainId
         );
 
         allPools.push(address(newPool));
