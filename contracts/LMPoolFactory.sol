@@ -5,19 +5,34 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "./LMPool.sol";
 import "./ILMPoolFactory.sol";
+import "./TransferHelper.sol";
 
 contract LMPoolFactory is ILMPoolFactory, ReentrancyGuard, Ownable, AccessControl {
     bytes32 public constant OWNER_ADMIN = keccak256("OWNER_ADMIN");
     bytes32 public constant ORACLE_NODE = keccak256("ORACLE_NODE");
 
-    address[] public allPools;
+    //ID OF THE CHAIN WHERE THE FACTORY IS DEPLOYED
+    uint256 private CONTRACT_DEPLOYED_CHAIN;
 
+    address[] public allPools;
+    
+    //Fee for reward token
     uint256 fee = 1000; // 10%
+
+    //Promoters fee
+    uint256 promotersFee = 100; // 1%
+    
+    //Fee for reward with custom token
+    uint256 customTokenFee = 2000; // 2%
 
     // ERC20 => Accepted
     mapping(address => bool) public acceptedRewardTokens;
+
+    // CHAIN ID => Accepted
+    mapping(uint32 => bool) public acceptedBlockchains;
 
     mapping(string => bool) public acceptedExchanges;
     mapping(address => bool) public pools;
@@ -25,7 +40,9 @@ contract LMPoolFactory is ILMPoolFactory, ReentrancyGuard, Ownable, AccessContro
     event PoolCreated(
         address indexed pool,
         string indexed exchange,
-        string indexed pair,
+        address indexed pairTokenA,
+        address pairTokenB,
+        uint32 chainId,
         uint256 created
     );
 
@@ -36,6 +53,15 @@ contract LMPoolFactory is ILMPoolFactory, ReentrancyGuard, Ownable, AccessContro
 
     constructor() {
         _grantRole(OWNER_ADMIN, msg.sender);
+        CONTRACT_DEPLOYED_CHAIN = getChainID();
+    }
+
+    function getChainID() internal view returns (uint256) {
+        uint256 id;
+        assembly {
+            id := chainid()
+        }
+        return id;
     }
 
     function getFee() external override view returns (uint256) {
@@ -82,6 +108,21 @@ contract LMPoolFactory is ILMPoolFactory, ReentrancyGuard, Ownable, AccessContro
         fee = amount;
     }
 
+    function setCustomTokenFee(uint256 amount) external {
+        require(hasRole(OWNER_ADMIN, msg.sender), "LMPoolFactory: Restricted to OWNER_ADMIN role on LMPool");
+        customTokenFee = amount;
+    }
+
+    function addBlockchain(uint32 chainId) external {
+        require(hasRole(OWNER_ADMIN, msg.sender), "LMPoolFactory: Restricted to OWNER_ADMIN role on LMPool");
+        acceptedBlockchains[chainId] = true;
+    }
+
+    function removeBlockchain(uint32 chainId) external {
+        require(hasRole(OWNER_ADMIN, msg.sender), "LMPoolFactory: Restricted to OWNER_ADMIN role on LMPool");
+        acceptedBlockchains[chainId] = false;
+    }
+
     function addExchange(string calldata name) external {
         require(hasRole(OWNER_ADMIN, msg.sender), "LMPoolFactory: Restricted to OWNER_ADMIN role on LMPool");
         acceptedExchanges[name] = true;
@@ -94,28 +135,45 @@ contract LMPoolFactory is ILMPoolFactory, ReentrancyGuard, Ownable, AccessContro
 
     function addRewards(address pool, uint256 amount, uint256 rewardDurationInEpochs) external {
         require(pools[pool], "Pool not found");
-        uint256 feeAmount = (amount * fee) / 10000;
-        uint256 rewards = amount - feeAmount;
         LMPool poolImpl = LMPool(pool);
-        IERC20(poolImpl.getRewardToken()).transferFrom(msg.sender, address(this), feeAmount);
-        IERC20(poolImpl.getRewardToken()).transferFrom(msg.sender, address(pool), rewards);
-        poolImpl.addRewards(rewards, rewardDurationInEpochs);
+        address rewardToken = poolImpl.getRewardToken();
+        
+        //If reward token is one of the pair, the pool fee is the customTokenFee
+        uint256 poolFee = acceptedRewardTokens[rewardToken] ? fee : customTokenFee;        
+        uint256 feeAmount = (amount * poolFee) / 10000;
+        
+        //Calculates amount of rewards for promoters
+        uint256 promotersRewards = (amount * promotersFee) / 10000;
+
+        uint256 rewards = amount - feeAmount - promotersRewards;
+        
+        TransferHelper.safeTransferFrom(poolImpl.getRewardToken(), msg.sender, address(this), feeAmount);
+        TransferHelper.safeTransferFrom(poolImpl.getRewardToken(), msg.sender, address(pool), (rewards + promotersRewards));        
+        poolImpl.addRewards(rewards, rewardDurationInEpochs, promotersRewards);
         emit RewardsAddedd(pool, poolImpl.getStartDate() + poolImpl.getEpochDuration() * poolImpl.getLastEpoch());
     }
 
     function createDynamicPool(
-        string calldata _exchange,
-        string calldata _pair,
-        address _rewardToken
+        string calldata _exchange,        
+        address _pairTokenA,
+        address _pairTokenB,
+        address _rewardToken,
+        uint32 _chainId
     ) external returns(address) {
-        require(acceptedRewardTokens[_rewardToken], "LMPoolFactory: Reward token is not accepted.");
+        require(acceptedRewardTokens[_rewardToken] ||
+                (_chainId == CONTRACT_DEPLOYED_CHAIN &&
+                _rewardToken == _pairTokenA || 
+                _rewardToken == _pairTokenB), "LMPoolFactory: Reward token is not accepted.");
         require(acceptedExchanges[_exchange], "LMPoolFactory: Exchange is not accepted.");
-
+        require(acceptedBlockchains[_chainId], "LMPoolFactory: Blockchain is not accepted.");
+               
         LMPool newPool = new LMPool(
             address(this),
             _exchange,
-            _pair,
-            _rewardToken
+            _pairTokenA,
+            _pairTokenB,
+            _rewardToken,
+            _chainId
         );
 
         allPools.push(address(newPool));
@@ -124,7 +182,9 @@ contract LMPoolFactory is ILMPoolFactory, ReentrancyGuard, Ownable, AccessContro
         emit PoolCreated(
             address(newPool),
             _exchange,
-            _pair,
+            _pairTokenA,
+            _pairTokenB,
+            _chainId,
             block.timestamp
         );
 
@@ -132,7 +192,7 @@ contract LMPoolFactory is ILMPoolFactory, ReentrancyGuard, Ownable, AccessContro
         return address(newPool);
     }
 
-    function grantPoolRole(address payable poolAddress, bytes32 role, address account) external {
+    function grantPoolRole(address poolAddress, bytes32 role, address account) external {
         require(LMPool(poolAddress).hasRole(OWNER_ADMIN, msg.sender), "LMPoolFactory: Restricted to OWNER_ADMIN role on LMPool");
         LMPool(poolAddress).grantRole(role, account);
     }
