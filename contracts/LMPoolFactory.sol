@@ -46,7 +46,7 @@ contract LMPoolFactory is ILMPoolFactory, ReentrancyGuard, Ownable, AccessContro
         uint256 created
     );
 
-    event RewardsAddedd(
+    event RewardsAdded(
         address indexed pool,
         uint256 endRewardsDate
     );
@@ -150,7 +150,7 @@ contract LMPoolFactory is ILMPoolFactory, ReentrancyGuard, Ownable, AccessContro
         TransferHelper.safeTransferFrom(poolImpl.getRewardToken(), msg.sender, address(this), feeAmount);
         TransferHelper.safeTransferFrom(poolImpl.getRewardToken(), msg.sender, address(pool), (rewards + promotersRewards));        
         poolImpl.addRewards(rewards, rewardDurationInEpochs, promotersRewards);
-        emit RewardsAddedd(pool, poolImpl.getStartDate() + poolImpl.getEpochDuration() * poolImpl.getLastEpoch());
+        emit RewardsAdded(pool, poolImpl.getStartDate() + poolImpl.getEpochDuration() * poolImpl.getLastEpoch());
     }
 
     function createDynamicPool(
