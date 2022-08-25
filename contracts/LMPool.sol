@@ -198,6 +198,11 @@ contract LMPool is ReentrancyGuard, Ownable, AccessControl {
         emit Withdraw(msg.sender, amount);
     }
 
+    function pendingRebateReward(address _user, uint256 epoch) external view returns (uint256) {
+        uint256 percentage = promoterEpochContribution[_user][epoch] * 100 / promotersEpochTotalContribution[epoch];
+        return promotersRewardPerEpoch[epoch] * percentage / 100;
+    }
+
     function pendingReward(address _user, uint256 epoch) external view returns (uint256) {
         UserInfo storage user = userInfo[_user][epoch];
 
