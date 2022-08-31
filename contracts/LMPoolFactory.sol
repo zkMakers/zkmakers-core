@@ -39,11 +39,11 @@ contract LMPoolFactory is ILMPoolFactory, ReentrancyGuard, Ownable, AccessContro
 
     event PoolCreated(
         address indexed pool,
-        string indexed exchange,
-        address indexed pairTokenA,
+        address pairTokenA,
         address pairTokenB,
         uint32 chainId,
-        uint256 created
+        uint256 created,
+        string exchange
     );
 
     event RewardsAdded(
@@ -181,11 +181,11 @@ contract LMPoolFactory is ILMPoolFactory, ReentrancyGuard, Ownable, AccessContro
 
         emit PoolCreated(
             address(newPool),
-            _exchange,
             _pairTokenA,
             _pairTokenB,
             _chainId,
-            block.timestamp
+            block.timestamp,
+            _exchange
         );
 
         LMPool(newPool).grantRole(OWNER_ADMIN, msg.sender);
