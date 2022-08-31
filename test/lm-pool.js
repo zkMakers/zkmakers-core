@@ -156,7 +156,7 @@ contract('Liquid Miners Pool', function (accounts) {
       await time.increase(time.duration.days(8));
 
       await expectRevert(
-        this.lmPool.submitProof(signature.finalPoints, signature.nonce, signature.proofTime, signature.proof,signature.uidHash,this.promoterAddress,
+        this.lmPoolFactory.submitProof(this.lmPoolAddress, signature.finalPoints, signature.nonce, signature.proofTime, signature.proof,signature.uidHash,this.promoterAddress,
           { from: accounts[2] }
         ),
         'This epoch is already claimable'
@@ -175,7 +175,7 @@ contract('Liquid Miners Pool', function (accounts) {
       const signature = await this.signer.createSignature(accounts[2], 5, proofTimeInFirstEpoch, this.lmPoolAddress,web3.utils.keccak256(accounts[2]));
 
       await expectRevert(
-        this.lmPool.submitProof(signature.finalPoints, signature.nonce, signature.proofTime, signature.proof,signature.uidHash,this.promoterAddress,
+        this.lmPoolFactory.submitProof(this.lmPoolAddress, signature.finalPoints, signature.nonce, signature.proofTime, signature.proof,signature.uidHash,this.promoterAddress,
           { from: accounts[2] }
         ),
         'Signature is not from an oracle'
@@ -201,7 +201,7 @@ contract('Liquid Miners Pool', function (accounts) {
       assert.equal(await this.lmPool.totalPoints(0), '0', 'Incorrect total points');
       assert.equal(await this.lmPool.totalPoints(1), '0', 'Incorrect total points');
 
-      await this.lmPool.submitProof(signature.finalPoints, signature.nonce, signature.proofTime, signature.proof,signature.uidHash,this.promoterAddress,
+      await this.lmPoolFactory.submitProof(this.lmPoolAddress, signature.finalPoints, signature.nonce, signature.proofTime, signature.proof,signature.uidHash,this.promoterAddress,
         { from: accounts[2], gasLimit: 1000000 }
       );
 
@@ -211,14 +211,14 @@ contract('Liquid Miners Pool', function (accounts) {
       assert.equal(await this.lmPool.totalPoints(1), '0', 'Incorrect total points');
 
       await expectRevert(
-        this.lmPool.submitProof(signature.finalPoints, signature.nonce, signature.proofTime, signature.proof,signature.uidHash,this.promoterAddress,
+        this.lmPoolFactory.submitProof(this.lmPoolAddress, signature.finalPoints, signature.nonce, signature.proofTime, signature.proof,signature.uidHash,this.promoterAddress,
           { from: accounts[2], gasLimit: 1000000 }
         ),
         'Nonce already used'
       );
 
       signature = await this.signer.createSignature(accounts[3], 5, proofTimeInFirstEpoch, this.lmPoolAddress,web3.utils.keccak256(accounts[3]));
-      await this.lmPool.submitProof(signature.finalPoints, signature.nonce, signature.proofTime, signature.proof,signature.uidHash,this.promoterAddress,
+      await this.lmPoolFactory.submitProof(this.lmPoolAddress, signature.finalPoints, signature.nonce, signature.proofTime, signature.proof,signature.uidHash,this.promoterAddress,
         { from: accounts[3], gasLimit: 1000000 }
       );
 
@@ -240,7 +240,7 @@ contract('Liquid Miners Pool', function (accounts) {
 
       signature = await this.signer.createSignature(accounts[3], 5, proofTimeInFirstEpoch, this.lmPoolAddress,web3.utils.keccak256(accounts[3]));
       await expectRevert(
-        this.lmPool.submitProof(signature.finalPoints, signature.nonce, signature.proofTime, signature.proof,signature.uidHash,this.promoterAddress,
+        this.lmPoolFactory.submitProof(this.lmPoolAddress, signature.finalPoints, signature.nonce, signature.proofTime, signature.proof,signature.uidHash,this.promoterAddress,
           { from: accounts[3], gasLimit: 1000000 }
         ),
         'This epoch is already claimable'
@@ -281,7 +281,7 @@ contract('Liquid Miners Pool', function (accounts) {
       assert.equal(await this.lmPool.totalPoints(0), '0', 'Incorrect total points');
       assert.equal(await this.lmPool.totalPoints(1), '0', 'Incorrect total points');
 
-      await this.lmPool.submitProof(signature.finalPoints, signature.nonce, signature.proofTime, signature.proof,signature.uidHash,this.promoterAddress,
+      await this.lmPoolFactory.submitProof(this.lmPoolAddress, signature.finalPoints, signature.nonce, signature.proofTime, signature.proof,signature.uidHash,this.promoterAddress,
         { from: accounts[2], gasLimit: 1000000 }
       );
 
@@ -311,7 +311,7 @@ contract('Liquid Miners Pool', function (accounts) {
       assert.equal(await this.lmPool.totalPoints(0), '0', 'Incorrect total points');
       assert.equal(await this.lmPool.totalPoints(1), '0', 'Incorrect total points');
 
-      await this.lmPool.submitProof(signature.finalPoints, signature.nonce, signature.proofTime, signature.proof,signature.uidHash,this.promoterAddress,
+      await this.lmPoolFactory.submitProof(this.lmPoolAddress, signature.finalPoints, signature.nonce, signature.proofTime, signature.proof,signature.uidHash,this.promoterAddress,
         { from: accounts[2], gasLimit: 1000000 }
       );
 
@@ -347,12 +347,12 @@ contract('Liquid Miners Pool', function (accounts) {
       assert.equal(await this.lmPool.totalPoints(0), '0', 'Incorrect total points');
       assert.equal(await this.lmPool.totalPoints(1), '0', 'Incorrect total points');
 
-      await this.lmPool.submitProof(signature.finalPoints, signature.nonce, signature.proofTime, signature.proof,signature.uidHash,this.promoterAddress,
+      await this.lmPoolFactory.submitProof(this.lmPoolAddress, signature.finalPoints, signature.nonce, signature.proofTime, signature.proof,signature.uidHash,this.promoterAddress,
         { from: accounts[2], gasLimit: 1000000 }
       );      
 
       signature = await this.signer.createSignature(accounts[3], 5, proofTimeInFirstEpoch, this.lmPoolAddress,web3.utils.keccak256(accounts[3]));
-      await this.lmPool.submitProof(signature.finalPoints, signature.nonce, signature.proofTime, signature.proof,signature.uidHash,accounts[5],
+      await this.lmPoolFactory.submitProof(this.lmPoolAddress, signature.finalPoints, signature.nonce, signature.proofTime, signature.proof,signature.uidHash,accounts[5],
         { from: accounts[3], gasLimit: 1000000 }
       );
 

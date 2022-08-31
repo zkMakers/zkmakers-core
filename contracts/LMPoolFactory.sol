@@ -51,6 +51,12 @@ contract LMPoolFactory is ILMPoolFactory, ReentrancyGuard, Ownable, AccessContro
         uint256 endRewardsDate
     );
 
+    event PointsMinted(
+        address indexed pool,
+        address indexed user,
+        uint256 amount
+    );
+
     constructor() {
         _grantRole(OWNER_ADMIN, msg.sender);
         CONTRACT_DEPLOYED_CHAIN = getChainID();
@@ -151,6 +157,13 @@ contract LMPoolFactory is ILMPoolFactory, ReentrancyGuard, Ownable, AccessContro
         TransferHelper.safeTransferFrom(poolImpl.getRewardToken(), msg.sender, address(pool), (rewards + promotersRewards));        
         poolImpl.addRewards(rewards, rewardDurationInEpochs, promotersRewards);
         emit RewardsAdded(pool, poolImpl.getStartDate() + poolImpl.getEpochDuration() * poolImpl.getLastEpoch());
+    }
+
+    function submitProof(address pool, uint256 amount, uint256 nonce, uint256 proofTime, bytes calldata proof, bytes32 uidHash, address promoter) external {
+        require(pools[pool], "Pool not found");
+        LMPool poolImpl = LMPool(pool);
+        poolImpl.submitProof(msg.sender, amount, nonce, proofTime, proof, uidHash, promoter);
+        emit PointsMinted(pool, msg.sender, amount);
     }
 
     function createDynamicPool(

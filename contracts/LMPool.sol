@@ -41,7 +41,7 @@ contract LMPool is ReentrancyGuard, Ownable, AccessControl {
     uint256 public lastEpoch;
 
     event Withdraw(address indexed user, uint256 amount);
-    event MintPoints(address indexed user, uint256 amount);
+    event PointsMinted(address indexed user, uint256 amount);
 
     address public rewardToken;
     address public pairTokenA;
@@ -130,25 +130,26 @@ contract LMPool is ReentrancyGuard, Ownable, AccessControl {
         }
     }
 
-    function submitProof(uint256 amount, uint256 nonce, uint256 proofTime, bytes calldata proof, bytes32 uidHash, address promoter) isPoolRunning external {
+    function submitProof(address sender, uint256 amount, uint256 nonce, uint256 proofTime, bytes calldata proof, bytes32 uidHash, address promoter) isPoolRunning external {
+        require(msg.sender == factory, "Only factory can add proofs");
         require(!usedNonces[nonce], "Nonce already used");
         uint256 epoch = getEpoch(proofTime);
         require(!canClaimThisEpoch(epoch), "This epoch is already claimable");
         require(amount > 0, "Amount must be more than 0");        
 
         if (exchangeUidUser[uidHash] == address(0)){
-            exchangeUidUser[uidHash] = msg.sender;
+            exchangeUidUser[uidHash] = sender;
         }
         
-        require(exchangeUidUser[uidHash] == msg.sender,"Only account owner can submit proof");        
+        require(exchangeUidUser[uidHash] == sender,"Only account owner can submit proof");        
 
-        UserInfo storage user = userInfo[msg.sender][epoch];
+        UserInfo storage user = userInfo[sender][epoch];
 
         usedNonces[nonce] = true;
-        lastProofTime[msg.sender] = proofTime;
+        lastProofTime[sender] = proofTime;
 
         // This recreates the message that was signed on the oracles
-        bytes32 message = prefixed(keccak256(abi.encodePacked(msg.sender, amount, nonce, proofTime, this,uidHash)));
+        bytes32 message = prefixed(keccak256(abi.encodePacked(sender, amount, nonce, proofTime, this, uidHash)));
 
         require(AccessControl(factory).hasRole(ORACLE_NODE, recoverSigner(message, proof)), "Signature is not from an oracle");
 
@@ -165,13 +166,13 @@ contract LMPool is ReentrancyGuard, Ownable, AccessControl {
             }
 
             if (pending > 0) {
-                TransferHelper.safeTransfer(rewardToken, address(msg.sender), pending);
+                TransferHelper.safeTransfer(rewardToken, address(sender), pending);
             }
         }
         
         user.amount = user.amount + amount;
         user.rewardDebt = user.amount * accTokenPerShare[epoch] / precision;
-        userTotalPoints[msg.sender] = userTotalPoints[msg.sender] + amount;
+        userTotalPoints[sender] = userTotalPoints[sender] + amount;
 
         totalPoints[epoch] = totalPoints[epoch] + amount;
 
@@ -179,7 +180,7 @@ contract LMPool is ReentrancyGuard, Ownable, AccessControl {
         promoterEpochContribution[promoter][epoch] += amount;
         promotersEpochTotalContribution[epoch] += amount;
 
-        emit MintPoints(msg.sender, amount);
+        emit PointsMinted(sender, amount);
     }
 
     function claimRebateRewards(uint256 epoch) public {
