@@ -68,8 +68,8 @@ contract LMPool is ReentrancyGuard, Ownable, AccessControl {
 
     mapping(uint256 => bool) public usedNonces;
 
-    // User => Last Proof Timestamp
-    mapping(address => uint256) public lastProofTime;
+    // User => Epoch => Last Proof Timestamp
+    mapping(address => mapping(uint256 => uint256)) public lastProofTime;
 
     uint256 precision = 1e12;
 
@@ -146,7 +146,7 @@ contract LMPool is ReentrancyGuard, Ownable, AccessControl {
         UserInfo storage user = userInfo[sender][epoch];
 
         usedNonces[nonce] = true;
-        lastProofTime[sender] = proofTime;
+        lastProofTime[sender][epoch] = proofTime;
 
         // This recreates the message that was signed on the oracles
         bytes32 message = prefixed(keccak256(abi.encodePacked(sender, amount, nonce, proofTime, this, uidHash)));
@@ -279,6 +279,20 @@ contract LMPool is ReentrancyGuard, Ownable, AccessControl {
         user.rewardDebt = user.amount * accTokenPerShare[epoch] / 1e12;
 
         emit Withdraw(msg.sender, pending);
+    }
+
+    function getProofTimeInverval(uint256 epoch, address user) public view returns (uint256 start, uint256 end) {
+        uint256 epochEnd = startDate + (epochDuration * epoch);
+        uint256 epochStart = epochEnd - epochDuration;
+        uint256 storedLastTime = lastProofTime[user][epoch];
+        uint256 currentTime = block.timestamp;
+        if (storedLastTime > 0) {
+            epochStart = storedLastTime;
+        }
+        if (epochEnd > currentTime) {
+            epochEnd = currentTime;
+        }
+        return (epochStart, epochEnd);
     }
 
     function getCurrentEpoch() public view returns (uint256) {
