@@ -304,7 +304,7 @@ contract LMPool is ReentrancyGuard, Ownable, AccessControl {
             return 0;
         }
         uint256 timePassed = timestamp - startDate;
-        return timePassed / epochDuration;
+        return timePassed / epochDuration + 1;
     }
 
     // Update reward variables 
