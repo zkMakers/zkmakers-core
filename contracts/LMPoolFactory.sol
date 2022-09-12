@@ -48,13 +48,18 @@ contract LMPoolFactory is ILMPoolFactory, ReentrancyGuard, Ownable, AccessContro
 
     event RewardsAdded(
         address indexed pool,
-        uint256 endRewardsDate
+        uint256 endRewardsDate,
+        uint256 created,
+        uint256 firstEpoch,
+        uint256 lastEpoch
     );
 
     event PointsMinted(
         address indexed pool,
         address indexed user,
-        uint256 amount
+        uint256 amount,
+        uint256 epoch,
+        uint256 created
     );
 
     constructor() {
@@ -156,14 +161,23 @@ contract LMPoolFactory is ILMPoolFactory, ReentrancyGuard, Ownable, AccessContro
         TransferHelper.safeTransferFrom(poolImpl.getRewardToken(), msg.sender, address(this), feeAmount);
         TransferHelper.safeTransferFrom(poolImpl.getRewardToken(), msg.sender, address(pool), (rewards + promotersRewards));        
         poolImpl.addRewards(rewards, rewardDurationInEpochs, promotersRewards);
-        emit RewardsAdded(pool, poolImpl.getStartDate() + poolImpl.getEpochDuration() * poolImpl.getLastEpoch());
+
+        uint256 firstEpoch = poolImpl.getCurrentEpoch();
+
+        emit RewardsAdded(
+            pool,
+            poolImpl.getStartDate() + poolImpl.getEpochDuration() * poolImpl.getLastEpoch(),
+            block.timestamp,
+            firstEpoch,
+            firstEpoch + rewardDurationInEpochs
+        );
     }
 
     function submitProof(address pool, uint256 amount, uint256 nonce, uint256 proofTime, bytes calldata proof, bytes32 uidHash, address promoter) external {
         require(pools[pool], "Pool not found");
         LMPool poolImpl = LMPool(pool);
         poolImpl.submitProof(msg.sender, amount, nonce, proofTime, proof, uidHash, promoter);
-        emit PointsMinted(pool, msg.sender, amount);
+        emit PointsMinted(pool, msg.sender, amount, poolImpl.getEpoch(proofTime), proofTime);
     }
 
     function createDynamicPool(
