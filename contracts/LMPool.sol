@@ -115,13 +115,13 @@ contract LMPool is ReentrancyGuard, Ownable, AccessControl {
                 
         
         uint256 promotersRewardsPerEpoch = promotersRewards / rewardDurationInEpochs;
-        for (uint256 i = currentEpoch; i < rewardDurationInEpochs; i++) {
+        for (uint256 i = currentEpoch; i < currentEpoch + rewardDurationInEpochs; i++) {
             promotersRewardPerEpoch[i] += promotersRewardsPerEpoch;
         }
         promotersTotalRewards += promotersRewards;
         
         uint256 rewardsPerEpoch = amount / rewardDurationInEpochs;
-        for (uint256 i = currentEpoch; i < rewardDurationInEpochs; i++) {
+        for (uint256 i = currentEpoch; i < currentEpoch + rewardDurationInEpochs; i++) {
             rewardPerEpoch[i] = rewardPerEpoch[i] + rewardsPerEpoch;
         }
         totalRewards = totalRewards + amount;

@@ -170,7 +170,7 @@ contract LMPoolFactory is ILMPoolFactory, ReentrancyGuard, Ownable, AccessContro
             poolImpl.getStartDate() + poolImpl.getEpochDuration() * poolImpl.getLastEpoch(),
             block.timestamp,
             firstEpoch,
-            firstEpoch + rewardDurationInEpochs,
+            firstEpoch + rewardDurationInEpochs - 1,
             rewards
         );
     }
