@@ -52,7 +52,8 @@ contract LMPoolFactory is ILMPoolFactory, ReentrancyGuard, Ownable, AccessContro
         uint256 created,
         uint256 firstEpoch,
         uint256 lastEpoch,
-        uint256 amount
+        uint256 amount,
+        uint256 startRewardsDate
     );
 
     event PointsMinted(
@@ -171,7 +172,8 @@ contract LMPoolFactory is ILMPoolFactory, ReentrancyGuard, Ownable, AccessContro
             block.timestamp,
             firstEpoch,
             firstEpoch + rewardDurationInEpochs - 1,
-            rewards
+            rewards,
+            poolImpl.getStartDate() + poolImpl.getEpochDuration() * firstEpoch
         );
     }
 
