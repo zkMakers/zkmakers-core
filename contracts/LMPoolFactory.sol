@@ -37,8 +37,8 @@ contract LMPoolFactory is ILMPoolFactory, ReentrancyGuard, Ownable, AccessContro
     mapping(string => bool) public acceptedExchanges;
     mapping(address => bool) public pools;
 
-    // Token A -> Token B -> Exchange -> Pool
-    mapping(address => mapping(address => mapping(string => address))) public getPool;
+    // Token A -> Token B -> Reward Token -> Exchange -> Pool
+    mapping(address => mapping(address => mapping(address => mapping(string => address)))) public getPool;
 
     event PoolCreated(
         address indexed pool,
@@ -200,8 +200,8 @@ contract LMPoolFactory is ILMPoolFactory, ReentrancyGuard, Ownable, AccessContro
                 _rewardToken == _pairTokenB), "LMPoolFactory: Reward token is not accepted.");
         require(acceptedExchanges[_exchange], "LMPoolFactory: Exchange is not accepted.");
         require(acceptedBlockchains[_chainId], "LMPoolFactory: Blockchain is not accepted.");
-        require(getPool[_pairTokenA][_pairTokenB][_exchange] == address(0), "LMPoolFactory: Pool already exists");
-        require(getPool[_pairTokenB][_pairTokenA][_exchange] == address(0), "LMPoolFactory: Pool already exists");
+        require(getPool[_pairTokenA][_pairTokenB][_rewardToken][_exchange] == address(0), "LMPoolFactory: Pool already exists");
+        require(getPool[_pairTokenB][_pairTokenA][_rewardToken][_exchange] == address(0), "LMPoolFactory: Pool already exists");
         
         LMPool newPool = new LMPool(
             address(this),
@@ -215,8 +215,8 @@ contract LMPoolFactory is ILMPoolFactory, ReentrancyGuard, Ownable, AccessContro
         allPools.push(address(newPool));
         pools[address(newPool)] = true;
 
-        getPool[_pairTokenA][_pairTokenB][_exchange] = address(newPool);
-        getPool[_pairTokenB][_pairTokenA][_exchange] = address(newPool);
+        getPool[_pairTokenA][_pairTokenB][_rewardToken][_exchange] = address(newPool);
+        getPool[_pairTokenB][_pairTokenA][_rewardToken][_exchange] = address(newPool);
 
         emit PoolCreated(
             address(newPool),
