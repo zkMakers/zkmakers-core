@@ -49,7 +49,7 @@ contract LMPool is ReentrancyGuard, Ownable, AccessControl {
     uint256 public startDate;
     address public factory;
     uint256 public epochDuration = 7 days;
-    uint256 public delayClaimEpoch = 1; // We need to wait to epoch to claim the rewards
+    uint256 public delayClaim = 3 days; // We need to wait 3 days after the epoch for claiming
     uint256 public totalRewards;    
     
     //Amount available for promoters
@@ -260,9 +260,14 @@ contract LMPool is ReentrancyGuard, Ownable, AccessControl {
         }
     }
 
+    function multiClaimRebateRewards(uint256[] calldata epochs) external {
+        for (uint256 i = 0; i < epochs.length; i++) {
+            claimRebateRewards(epochs[i]);
+        }
+    }
+
     function canClaimThisEpoch(uint256 epoch) public view returns (bool) {
-        uint256 currentEpoch = getCurrentEpoch();
-        return currentEpoch >= delayClaimEpoch + epoch;
+        return getCurrentEpochEnd() >= delayClaim + getEpochEnd(epoch);
     }
 
     function claim(uint256 epoch) public {
@@ -279,8 +284,16 @@ contract LMPool is ReentrancyGuard, Ownable, AccessControl {
         emit Withdraw(msg.sender, pending);
     }
 
+    function getCurrentEpochEnd() public view returns (uint256) {
+        return getEpochEnd(getCurrentEpoch());
+    }
+
+    function getEpochEnd(uint256 epoch) public view returns (uint256) {
+        return startDate + (epochDuration * epoch);
+    }
+
     function getProofTimeInverval(uint256 epoch, address user) public view returns (uint256 start, uint256 end) {
-        uint256 epochEnd = startDate + (epochDuration * epoch);
+        uint256 epochEnd = getEpochEnd(epoch);
         uint256 epochStart = epochEnd - epochDuration;
         uint256 storedLastTime = lastProofTime[user][epoch];
         uint256 currentTime = block.timestamp;
