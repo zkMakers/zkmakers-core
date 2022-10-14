@@ -89,39 +89,9 @@ contract('Liquid Miners Pool Factory', function (accounts) {
       });
     });
 
-    it('Account has OWNER_ADMIN role', async function() {
-      assert.isTrue(
-        await this.lmPool.hasRole(OWNER_ADMIN, accounts[0]).valueOf(),
-        'Account has NOT OWNER_ADMIN role'
-      );
-    });
-
   });
 
   describe('Update Pool', function () {
-
-    it('grantPoolRole grants on Pool', async function() {
-
-      // Doesn't has the role
-      assert.isFalse(
-        await this.lmPool.hasRole(OWNER_ADMIN, accounts[7]).valueOf(),
-        'Account has NOT OWNER_ADMIN role'
-      );
-
-      await this.lmPoolFactory.grantPoolRole(
-        this.lmPool.address,
-        OWNER_ADMIN,
-        accounts[7],
-        { from: accounts[0] }
-      );
-
-      // Has new role
-      assert.isTrue(
-        await this.lmPool.hasRole(OWNER_ADMIN, accounts[7]).valueOf(),
-        'Account has NOT OWNER_ADMIN role'
-      );
-
-    });
 
     it('should withdraw', async function() {      
       await this.lmPoolFactory.addRewards(this.lmPool.address, '100000000000000000000000000', 3, { from: accounts[0], gasLimit: 1000000 });

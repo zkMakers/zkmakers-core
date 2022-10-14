@@ -9,6 +9,7 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "./LMPool.sol";
 import "./ILMPoolFactory.sol";
 import "./TransferHelper.sol";
+import "./ProofVerifier.sol";
 
 contract LMPoolFactory is ILMPoolFactory, ReentrancyGuard, Ownable, AccessControl {
     bytes32 public constant OWNER_ADMIN = keccak256("OWNER_ADMIN");
@@ -36,6 +37,7 @@ contract LMPoolFactory is ILMPoolFactory, ReentrancyGuard, Ownable, AccessContro
 
     mapping(string => bool) public acceptedExchanges;
     mapping(address => bool) public pools;
+    ProofVerifier public proofVerifier;
 
     // Token A -> Token B -> Reward Token -> Exchange -> Pool
     mapping(address => mapping(address => mapping(address => mapping(string => address)))) public getPool;
@@ -70,6 +72,7 @@ contract LMPoolFactory is ILMPoolFactory, ReentrancyGuard, Ownable, AccessContro
     constructor() {
         _grantRole(OWNER_ADMIN, msg.sender);
         CONTRACT_DEPLOYED_CHAIN = getChainID();
+        proofVerifier = new ProofVerifier(address(this));
     }
 
     function getChainID() internal view returns (uint256) {
@@ -80,72 +83,67 @@ contract LMPoolFactory is ILMPoolFactory, ReentrancyGuard, Ownable, AccessContro
         return id;
     }
 
-    function getFee() external override view returns (uint256) {
+    function getFee() external view returns (uint256) {
         return fee;
     }
 
-    function addOwner(address owner) external {
-        require(hasRole(OWNER_ADMIN, msg.sender), "LMPoolFactory: Restricted to OWNER_ADMIN role on LMPool");
+    function addOwner(address owner) external onlyAdmin {
         _grantRole(OWNER_ADMIN, owner);
     }
 
-    function removeOwner(address owner) external {
-        require(hasRole(OWNER_ADMIN, msg.sender), "LMPoolFactory: Restricted to OWNER_ADMIN role on LMPool");
+    function removeOwner(address owner) external onlyAdmin {
         _revokeRole(OWNER_ADMIN, owner);
     }
 
-    function createOracle(address oracle) external {
-        require(hasRole(OWNER_ADMIN, msg.sender), "LMPoolFactory: Restricted to OWNER_ADMIN role on LMPool");
+    function createOracle(address oracle) external onlyAdmin {
         _grantRole(ORACLE_NODE, oracle);
     }
 
-    function removeOracle(address oracle) external {
-        require(hasRole(OWNER_ADMIN, msg.sender), "LMPoolFactory: Restricted to OWNER_ADMIN role on LMPool");
+    function removeOracle(address oracle) external onlyAdmin {
         _revokeRole(ORACLE_NODE, oracle);
     }
 
-    function acceptRewardToken(address token) external {
-        require(hasRole(OWNER_ADMIN, msg.sender), "LMPoolFactory: Restricted to OWNER_ADMIN role on LMPool");
+    function acceptRewardToken(address token) external onlyAdmin {
         acceptedRewardTokens[token] = true;
     }
 
-    function rejectRewardToken(address token) external {
-        require(hasRole(OWNER_ADMIN, msg.sender), "LMPoolFactory: Restricted to OWNER_ADMIN role on LMPool");
+    function rejectRewardToken(address token) external onlyAdmin {
         acceptedRewardTokens[token] = false;
     }
 
-    function withdraw(address token, address receiver, uint256 amount) external {
-        require(hasRole(OWNER_ADMIN, msg.sender), "LMPoolFactory: Restricted to OWNER_ADMIN role on LMPool");
+    function withdraw(address token, address receiver, uint256 amount) external onlyAdmin {
         IERC20(token).transfer(receiver, amount);
     }
 
-    function setFee(uint256 amount) external {
-        require(hasRole(OWNER_ADMIN, msg.sender), "LMPoolFactory: Restricted to OWNER_ADMIN role on LMPool");
+    function setFee(uint256 amount) external onlyAdmin {
         fee = amount;
     }
 
-    function setCustomTokenFee(uint256 amount) external {
-        require(hasRole(OWNER_ADMIN, msg.sender), "LMPoolFactory: Restricted to OWNER_ADMIN role on LMPool");
+    function setCustomTokenFee(uint256 amount) external onlyAdmin {
         customTokenFee = amount;
     }
 
-    function addBlockchain(uint32 chainId) external {
-        require(hasRole(OWNER_ADMIN, msg.sender), "LMPoolFactory: Restricted to OWNER_ADMIN role on LMPool");
+    function setProofVerifier(ProofVerifier newProofVerifier) external onlyAdmin {
+        proofVerifier = newProofVerifier;
+    }
+    
+    function getProofVerifier() override external view returns (IProofVerifier) {
+        return proofVerifier;
+    }
+
+    function addBlockchain(uint32 chainId) external onlyAdmin {
         acceptedBlockchains[chainId] = true;
     }
 
-    function removeBlockchain(uint32 chainId) external {
-        require(hasRole(OWNER_ADMIN, msg.sender), "LMPoolFactory: Restricted to OWNER_ADMIN role on LMPool");
+    function removeBlockchain(uint32 chainId) external onlyAdmin {
         acceptedBlockchains[chainId] = false;
     }
 
-    function addExchange(string calldata name) external {
-        require(hasRole(OWNER_ADMIN, msg.sender), "LMPoolFactory: Restricted to OWNER_ADMIN role on LMPool");
+    function addExchange(string calldata name) external onlyAdmin {
         acceptedExchanges[name] = true;
     }
 
-    function removeExchange(string calldata name) external {
-        require(hasRole(OWNER_ADMIN, msg.sender), "LMPoolFactory: Restricted to OWNER_ADMIN role on LMPool");
+    function removeExchange(string calldata name) external onlyAdmin {
         acceptedExchanges[name] = false;
     }
 
@@ -227,13 +225,12 @@ contract LMPoolFactory is ILMPoolFactory, ReentrancyGuard, Ownable, AccessContro
             _exchange
         );
 
-        LMPool(newPool).grantRole(OWNER_ADMIN, msg.sender);
         return address(newPool);
     }
 
-    function grantPoolRole(address poolAddress, bytes32 role, address account) external {
-        require(LMPool(poolAddress).hasRole(OWNER_ADMIN, msg.sender), "LMPoolFactory: Restricted to OWNER_ADMIN role on LMPool");
-        LMPool(poolAddress).grantRole(role, account);
+    modifier onlyAdmin() {
+        require(hasRole(OWNER_ADMIN, msg.sender), "LMPoolFactory: Restricted to OWNER_ADMIN role on LMPool");
+        _;
     }
     
 }

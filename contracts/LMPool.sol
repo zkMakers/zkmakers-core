@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
@@ -10,9 +8,7 @@ import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import "./ILMPoolFactory.sol";
 import "./TransferHelper.sol";
 
-contract LMPool is ReentrancyGuard, Ownable, AccessControl {
-    bytes32 public constant OWNER_ADMIN = keccak256("OWNER_ADMIN");
-    bytes32 public constant ORACLE_NODE = keccak256("ORACLE_NODE");
+contract LMPool is ReentrancyGuard {
 
     //ID OF THE CHAIN WHERE THE POOL IS DEPLOYED
     uint256 private CONTRACT_DEPLOYED_CHAIN;
@@ -39,7 +35,7 @@ contract LMPool is ReentrancyGuard, Ownable, AccessControl {
     uint256 public lastEpoch;
 
     event Withdraw(address indexed user, uint256 amount);
-    event PointsMinted(address indexed user, uint256 amount);
+    event PointsMinted(address indexed user, uint256 amount, address indexed signer);
 
     address public rewardToken;
     address public pairTokenA;
@@ -102,7 +98,6 @@ contract LMPool is ReentrancyGuard, Ownable, AccessControl {
         tokenDecimals = IERC20Metadata(_rewardToken).decimals();
         startDate = block.timestamp;
         rewardToken = _rewardToken;
-        _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
 
     function addRewards(uint256 amount, uint256 rewardDurationInEpochs, uint256 promotersRewards) external {
@@ -146,10 +141,7 @@ contract LMPool is ReentrancyGuard, Ownable, AccessControl {
         usedNonces[nonce] = true;
         lastProofTime[sender][epoch] = proofTime;
 
-        // This recreates the message that was signed on the oracles
-        bytes32 message = prefixed(keccak256(abi.encodePacked(sender, amount, nonce, proofTime, this, uidHash)));
-
-        require(AccessControl(factory).hasRole(ORACLE_NODE, recoverSigner(message, proof)), "Signature is not from an oracle");
+        address proofSigner = ILMPoolFactory(factory).getProofVerifier().verify(sender, amount, nonce, proofTime, address(this), uidHash, proof);
 
         updatePool(epoch);
 
@@ -178,23 +170,7 @@ contract LMPool is ReentrancyGuard, Ownable, AccessControl {
         promoterEpochContribution[promoter][epoch] += amount;
         promotersEpochTotalContribution[epoch] += amount;
 
-        emit PointsMinted(sender, amount);
-    }
-
-    function claimRebateRewards(uint256 epoch) public {
-        require(canClaimThisEpoch(epoch), "This epoch is not claimable");
-        require(promoterEpochContribution[msg.sender][epoch] > 0, "No rewards to claim in the given epoch");
-        
-        uint256 percentage = promoterEpochContribution[msg.sender][epoch] * 100 / promotersEpochTotalContribution[epoch];
-        uint256 amount = promotersRewardPerEpoch[epoch] * percentage / 100;
-
-        TransferHelper.safeTransfer(rewardToken, address(msg.sender), amount);
-
-        //Update balances        
-        promoterEpochContribution[msg.sender][epoch] = 0;
-        promotersTotalRewards -= amount;
-
-        emit Withdraw(msg.sender, amount);
+        emit PointsMinted(sender, amount, proofSigner);
     }
 
     function pendingRebateReward(address _user, uint256 epoch) external view returns (uint256) {
@@ -254,6 +230,10 @@ contract LMPool is ReentrancyGuard, Ownable, AccessControl {
         return promotersEpochTotalContribution[epoch];
     }
 
+    function canClaimThisEpoch(uint256 epoch) public view returns (bool) {
+        return getCurrentEpochEnd() >= delayClaim + getEpochEnd(epoch);
+    }
+
     function multiClaim(uint256[] calldata epochs) external {
         for (uint256 i = 0; i < epochs.length; i++) {
             claim(epochs[i]);
@@ -266,11 +246,23 @@ contract LMPool is ReentrancyGuard, Ownable, AccessControl {
         }
     }
 
-    function canClaimThisEpoch(uint256 epoch) public view returns (bool) {
-        return getCurrentEpochEnd() >= delayClaim + getEpochEnd(epoch);
+    function claimRebateRewards(uint256 epoch) public nonReentrant { // ToDo Check nonReentrant
+        require(canClaimThisEpoch(epoch), "This epoch is not claimable");
+        require(promoterEpochContribution[msg.sender][epoch] > 0, "No rewards to claim in the given epoch");
+        
+        uint256 percentage = promoterEpochContribution[msg.sender][epoch] * 100 / promotersEpochTotalContribution[epoch];
+        uint256 amount = promotersRewardPerEpoch[epoch] * percentage / 100;
+
+        TransferHelper.safeTransfer(rewardToken, address(msg.sender), amount);
+
+        //Update balances        
+        promoterEpochContribution[msg.sender][epoch] = 0;
+        promotersTotalRewards -= amount;
+
+        emit Withdraw(msg.sender, amount);
     }
 
-    function claim(uint256 epoch) public {
+    function claim(uint256 epoch) public nonReentrant { // ToDo Check nonReentrant
         require(canClaimThisEpoch(epoch), "This epoch is not claimable");
 
         UserInfo storage user = userInfo[msg.sender][epoch];
@@ -334,50 +326,6 @@ contract LMPool is ReentrancyGuard, Ownable, AccessControl {
         uint256 reward = multiplier * getRewardsPerEpoch(epoch);
         accTokenPerShare[epoch] = accTokenPerShare[epoch] + (reward * precision/ totalPoints[epoch]);
         lastRewardEpoch = currentEpoch;
-    }
-
-
-    // Signature methods
-    function splitSignature(bytes memory sig)
-        internal
-        pure
-        returns (uint8, bytes32, bytes32)
-    {
-        require(sig.length == 65);
-
-        bytes32 r;
-        bytes32 s;
-        uint8 v;
-
-        assembly {
-            // first 32 bytes, after the length prefix
-            r := mload(add(sig, 32))
-            // second 32 bytes
-            s := mload(add(sig, 64))
-            // final byte (first byte of the next 32 bytes)
-            v := byte(0, mload(add(sig, 96)))
-        }
-
-        return (v, r, s);
-    }
-
-    function recoverSigner(bytes32 message, bytes memory sig)
-        internal
-        pure
-        returns (address)
-    {
-        uint8 v;
-        bytes32 r;
-        bytes32 s;
-
-        (v, r, s) = splitSignature(sig);
-
-        return ecrecover(message, v, r, s);
-    }
-
-    // Builds a prefixed hash to mimic the behavior of eth_sign.
-    function prefixed(bytes32 hash) internal pure returns (bytes32) {
-        return keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", hash));
     }
 
     function isActive()

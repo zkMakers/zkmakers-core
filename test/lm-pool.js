@@ -199,7 +199,7 @@ contract('Liquid Miners Pool', function (accounts) {
         this.lmPoolFactory.submitProof(this.lmPoolAddress, signature.finalPoints, signature.nonce, signature.proofTime, signature.proof,signature.uidHash,this.promoterAddress,
           { from: accounts[2] }
         ),
-        'Signature is not from an oracle'
+        'Signature is not from a valid oracle'
       );
     });
 
@@ -388,7 +388,12 @@ contract('Liquid Miners Pool', function (accounts) {
       assert.equal(await this.token.balanceOf(this.promoterAddress), '0', 'Incorrect promoter balance');
       await this.lmPool.claimRebateRewards(epoch,{ from: this.promoterAddress, gasLimit: 1000000 });
       assert.equal((await this.token.balanceOf(this.promoterAddress)).toString(), '5000000000000000000000', 'Incorrect promoter balance');
-      
+      await expectRevert(
+        this.lmPool.claimRebateRewards(epoch,{ from: this.promoterAddress, gasLimit: 1000000 }),
+        'No rewards to claim in the given epoch'
+      );
+      assert.equal((await this.token.balanceOf(this.promoterAddress)).toString(), '5000000000000000000000', 'Incorrect promoter balance');
+
       assert.equal(await this.token.balanceOf(accounts[5]), '0', 'Incorrect promoter balance');
       await this.lmPool.claimRebateRewards(epoch,{ from: accounts[5], gasLimit: 1000000 });
       assert.equal((await this.token.balanceOf(accounts[5])).toString(), '5000000000000000000000', 'Incorrect promoter balance');
