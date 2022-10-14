@@ -2,13 +2,12 @@
 pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/utils/Address.sol";
-import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import "./ILMPoolFactory.sol";
 import "./TransferHelper.sol";
 
-contract LMPool is ReentrancyGuard {
+contract LMPool {
 
     //ID OF THE CHAIN WHERE THE POOL IS DEPLOYED
     uint256 private CONTRACT_DEPLOYED_CHAIN;
@@ -173,7 +172,7 @@ contract LMPool is ReentrancyGuard {
         emit PointsMinted(sender, amount, proofSigner);
     }
 
-    function pendingRebateReward(address _user, uint256 epoch) external view returns (uint256) {
+    function pendingRebateReward(address _user, uint256 epoch) public view returns (uint256) {
         uint256 percentage = promoterEpochContribution[_user][epoch] * 100 / promotersEpochTotalContribution[epoch];
         return promotersRewardPerEpoch[epoch] * percentage / 100;
     }
@@ -246,32 +245,32 @@ contract LMPool is ReentrancyGuard {
         }
     }
 
-    function claimRebateRewards(uint256 epoch) public nonReentrant { // ToDo Check nonReentrant
+    function claimRebateRewards(uint256 epoch) public {
         require(canClaimThisEpoch(epoch), "This epoch is not claimable");
         require(promoterEpochContribution[msg.sender][epoch] > 0, "No rewards to claim in the given epoch");
         
-        uint256 percentage = promoterEpochContribution[msg.sender][epoch] * 100 / promotersEpochTotalContribution[epoch];
-        uint256 amount = promotersRewardPerEpoch[epoch] * percentage / 100;
-
-        TransferHelper.safeTransfer(rewardToken, address(msg.sender), amount);
+        uint256 amount = pendingRebateReward(msg.sender, epoch);
 
         //Update balances        
         promoterEpochContribution[msg.sender][epoch] = 0;
         promotersTotalRewards -= amount;
 
+        TransferHelper.safeTransfer(rewardToken, address(msg.sender), amount);
+
         emit Withdraw(msg.sender, amount);
     }
 
-    function claim(uint256 epoch) public nonReentrant { // ToDo Check nonReentrant
+    function claim(uint256 epoch) public {
         require(canClaimThisEpoch(epoch), "This epoch is not claimable");
 
         UserInfo storage user = userInfo[msg.sender][epoch];
         updatePool(epoch);
-        uint256 pending = (user.amount * accTokenPerShare[epoch] / 1e12) - user.rewardDebt;
+        uint256 totalRewardsForUser = user.amount * accTokenPerShare[epoch] / 1e12;
+        uint256 pending = totalRewardsForUser - user.rewardDebt;
+        user.rewardDebt = totalRewardsForUser;
         if(pending > 0) {
             TransferHelper.safeTransfer(rewardToken, address(msg.sender), pending);
         }
-        user.rewardDebt = user.amount * accTokenPerShare[epoch] / 1e12;
 
         emit Withdraw(msg.sender, pending);
     }
