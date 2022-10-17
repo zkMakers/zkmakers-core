@@ -122,7 +122,7 @@ contract LMPool {
         }
     }
 
-    function submitProof(address sender, uint256 amount, uint256 nonce, uint256 proofTime, bytes calldata proof, bytes32 uidHash, address promoter) isPoolRunning external {
+    function submitProof(address sender, uint256 amount, uint256 nonce, uint256 proofTime, bytes32 uidHash, address promoter, address proofSigner) isPoolRunning external {
         require(msg.sender == factory, "Only factory can add proofs");
         require(!usedNonces[nonce], "Nonce already used");
         uint256 epoch = getEpoch(proofTime);
@@ -139,8 +139,6 @@ contract LMPool {
 
         usedNonces[nonce] = true;
         lastProofTime[sender][epoch] = proofTime;
-
-        address proofSigner = ILMPoolFactory(factory).getProofVerifier().verify(sender, amount, nonce, proofTime, address(this), uidHash, proof);
 
         updatePool(epoch);
 
@@ -194,7 +192,7 @@ contract LMPool {
 
         if (remainingRewards == 0) {
             rewards = 0;
-                } else if (rewards > remainingRewards) {
+        } else if (rewards > remainingRewards) {
             rewards = remainingRewards;
         }
 

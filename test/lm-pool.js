@@ -171,6 +171,7 @@ contract('Liquid Miners Pool', function (accounts) {
         await this.lmPool.isActive(),
         'isActive value is wrong'
       );
+      await this.lmPoolFactory.createOracle(this.signerAddress, { from: accounts[0] });
       const signature = await this.signer.createSignature(accounts[2], 5, proofTimeInFirstEpoch, this.lmPoolAddress,web3.utils.keccak256(accounts[2]));
 
 

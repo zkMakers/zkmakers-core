@@ -27,7 +27,7 @@ contract LMPoolFactory is ILMPoolFactory, ReentrancyGuard, Ownable, AccessContro
     uint256 promotersFee = 100; // 1%
     
     //Fee for reward with custom token
-    uint256 customTokenFee = 2000; // 2%
+    uint256 customTokenFee = 2000; // 20%
 
     // ERC20 => Accepted
     mapping(address => bool) public acceptedRewardTokens;
@@ -64,6 +64,15 @@ contract LMPoolFactory is ILMPoolFactory, ReentrancyGuard, Ownable, AccessContro
     event PointsMinted(
         address indexed pool,
         address indexed user,
+        uint256 amount,
+        uint256 epoch,
+        uint256 created
+    );
+
+    event PointsRewarded(
+        address indexed pool,
+        address indexed promoter,
+        address indexed proofSigner,
         uint256 amount,
         uint256 epoch,
         uint256 created
@@ -180,9 +189,12 @@ contract LMPoolFactory is ILMPoolFactory, ReentrancyGuard, Ownable, AccessContro
 
     function submitProof(address pool, uint256 amount, uint256 nonce, uint256 proofTime, bytes calldata proof, bytes32 uidHash, address promoter) external {
         require(pools[pool], "Pool not found");
+        address proofSigner = proofVerifier.verify(msg.sender, amount, nonce, proofTime, pool, uidHash, proof);
         LMPool poolImpl = LMPool(pool);
-        poolImpl.submitProof(msg.sender, amount, nonce, proofTime, proof, uidHash, promoter);
-        emit PointsMinted(pool, msg.sender, amount, poolImpl.getEpoch(proofTime), proofTime);
+        uint256 epoch = poolImpl.getEpoch(proofTime);
+        poolImpl.submitProof(msg.sender, amount, nonce, proofTime, uidHash, promoter, proofSigner);
+        emit PointsMinted(pool, msg.sender, amount, epoch, proofTime);
+        emit PointsRewarded(pool, promoter, proofSigner, amount, epoch, proofTime);
     }
 
     function createDynamicPoolAndAddRewards(
