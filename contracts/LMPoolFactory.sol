@@ -21,13 +21,16 @@ contract LMPoolFactory is ILMPoolFactory, ReentrancyGuard, Ownable, AccessContro
     address[] public allPools;
     
     //Fee for reward token
-    uint256 fee = 1000; // 10%
+    uint256 fee = 900; // 9%
 
     //Promoters fee
     uint256 promotersFee = 100; // 1%
+
+    //Oracle fee
+    uint256 oracleFee = 100; // 1%
     
     //Fee for reward with custom token
-    uint256 customTokenFee = 2000; // 20%
+    uint256 customTokenFee = 1900; // 19%
 
     // ERC20 => Accepted
     mapping(address => bool) public acceptedRewardTokens;
@@ -128,6 +131,14 @@ contract LMPoolFactory is ILMPoolFactory, ReentrancyGuard, Ownable, AccessContro
         fee = amount;
     }
 
+    function setPromotersFee(uint256 amount) external onlyAdmin {
+        promotersFee = amount;
+    }
+
+    function setOracleFee(uint256 amount) external onlyAdmin {
+        oracleFee = amount;
+    }
+
     function setCustomTokenFee(uint256 amount) external onlyAdmin {
         customTokenFee = amount;
     }
@@ -168,11 +179,14 @@ contract LMPoolFactory is ILMPoolFactory, ReentrancyGuard, Ownable, AccessContro
         //Calculates amount of rewards for promoters
         uint256 promotersRewards = (amount * promotersFee) / 10000;
 
-        uint256 rewards = amount - feeAmount - promotersRewards;
+        //Calculates amount of rewards for oracles
+        uint256 oracleRewards = (amount * oracleFee) / 10000;
+
+        uint256 rewards = amount - feeAmount - promotersRewards - oracleRewards;
         
         TransferHelper.safeTransferFrom(poolImpl.getRewardToken(), msg.sender, address(this), feeAmount);
-        TransferHelper.safeTransferFrom(poolImpl.getRewardToken(), msg.sender, address(pool), (rewards + promotersRewards));        
-        poolImpl.addRewards(rewards, rewardDurationInEpochs, promotersRewards);
+        TransferHelper.safeTransferFrom(poolImpl.getRewardToken(), msg.sender, address(pool), (rewards + promotersRewards + oracleRewards));        
+        poolImpl.addRewards(rewards, rewardDurationInEpochs, promotersRewards, oracleRewards);
 
         uint256 firstEpoch = poolImpl.getCurrentEpoch();
 

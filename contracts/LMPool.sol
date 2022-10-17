@@ -57,6 +57,17 @@ contract LMPool {
     
     mapping (uint256 => uint256) public promotersEpochTotalContribution;
 
+
+    //Amount available for promoters
+    uint256 public oraclesTotalRewards;
+
+    mapping(uint256 => uint256) public oraclesRewardPerEpoch;
+
+    //Promoter => Epoch => Contribution amount
+    mapping(address => mapping (uint256 => uint256)) public oraclesEpochContribution;
+    
+    mapping (uint256 => uint256) public oraclesEpochTotalContribution;
+
     mapping(uint256 => uint256) public rewardPerEpoch;
 
     mapping(uint256 => bool) public usedNonces;
@@ -99,23 +110,26 @@ contract LMPool {
         rewardToken = _rewardToken;
     }
 
-    function addRewards(uint256 amount, uint256 rewardDurationInEpochs, uint256 promotersRewards) external {
+    function addRewards(uint256 amount, uint256 rewardDurationInEpochs, uint256 promotersRewards, uint256 oracleRewards) external {
         require(msg.sender == factory, "Only factory can add internal rewards");
-        require(rewardDurationInEpochs <= 90, "Can't send more than 90 epochs at the same time");
+        require(rewardDurationInEpochs <= 41, "Can't send more than 90 epochs at the same time");
         require(rewardDurationInEpochs > 0, "Can't divide by 0 epochs");
         uint256 currentEpoch = getCurrentEpoch();
                 
-        
         uint256 promotersRewardsPerEpoch = promotersRewards / rewardDurationInEpochs;
-        for (uint256 i = currentEpoch; i < currentEpoch + rewardDurationInEpochs; i++) {
-            promotersRewardPerEpoch[i] += promotersRewardsPerEpoch;
-        }
         promotersTotalRewards += promotersRewards;
-        
+
+        uint256 oraclesRewardsPerEpoch = oracleRewards / rewardDurationInEpochs;
+        oraclesTotalRewards += oracleRewards;
+
         uint256 rewardsPerEpoch = amount / rewardDurationInEpochs;
+
         for (uint256 i = currentEpoch; i < currentEpoch + rewardDurationInEpochs; i++) {
             rewardPerEpoch[i] = rewardPerEpoch[i] + rewardsPerEpoch;
+            promotersRewardPerEpoch[i] += promotersRewardsPerEpoch;
+            oraclesRewardPerEpoch[i] += oraclesRewardsPerEpoch;
         }
+
         totalRewards = totalRewards + amount;
         if (currentEpoch + rewardDurationInEpochs > lastEpoch) {
             lastEpoch = currentEpoch + rewardDurationInEpochs;
@@ -163,11 +177,20 @@ contract LMPool {
 
         totalPoints[epoch] = totalPoints[epoch] + amount;
 
-        //Update promoter epoch balance & promoters epoch total balance
+        //Update promoter epoch balance & epoch total balance
         promoterEpochContribution[promoter][epoch] += amount;
         promotersEpochTotalContribution[epoch] += amount;
 
+        //Update oracles epoch balance & epoch total balance
+        oraclesEpochContribution[proofSigner][epoch] += amount;
+        oraclesEpochTotalContribution[epoch] += amount;
+
         emit PointsMinted(sender, amount, proofSigner);
+    }
+
+    function pendingOracleReward(address _user, uint256 epoch) public view returns (uint256) {
+        uint256 percentage = oraclesEpochContribution[_user][epoch] * 100 / oraclesEpochTotalContribution[epoch];
+        return oraclesRewardPerEpoch[epoch] * percentage / 100;
     }
 
     function pendingRebateReward(address _user, uint256 epoch) public view returns (uint256) {
@@ -227,6 +250,14 @@ contract LMPool {
         return promotersEpochTotalContribution[epoch];
     }
 
+    function getOracleEpochContribution(address oracle,uint256 epoch) public view returns (uint256) {
+        return oraclesEpochContribution[oracle][epoch];
+    }
+
+    function getOraclesEpochTotalContribution(uint256 epoch) public view returns (uint256) {
+        return oraclesEpochTotalContribution[epoch];
+    }
+
     function canClaimThisEpoch(uint256 epoch) public view returns (bool) {
         return getCurrentEpochEnd() >= delayClaim + getEpochEnd(epoch);
     }
@@ -241,6 +272,27 @@ contract LMPool {
         for (uint256 i = 0; i < epochs.length; i++) {
             claimRebateRewards(epochs[i]);
         }
+    }
+
+    function multiClaimOracleRewards(uint256[] calldata epochs) external {
+        for (uint256 i = 0; i < epochs.length; i++) {
+            claimOracleRewards(epochs[i]);
+        }
+    }
+
+    function claimOracleRewards(uint256 epoch) public {
+        require(canClaimThisEpoch(epoch), "This epoch is not claimable");
+        require(oraclesEpochContribution[msg.sender][epoch] > 0, "No rewards to claim in the given epoch");
+        
+        uint256 amount = pendingOracleReward(msg.sender, epoch);
+
+        //Update balances        
+        oraclesEpochContribution[msg.sender][epoch] = 0;
+        oraclesTotalRewards -= amount;
+
+        TransferHelper.safeTransfer(rewardToken, address(msg.sender), amount);
+
+        emit Withdraw(msg.sender, amount);
     }
 
     function claimRebateRewards(uint256 epoch) public {
