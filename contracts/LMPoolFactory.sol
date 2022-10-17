@@ -147,7 +147,7 @@ contract LMPoolFactory is ILMPoolFactory, ReentrancyGuard, Ownable, AccessContro
         acceptedExchanges[name] = false;
     }
 
-    function addRewards(address pool, uint256 amount, uint256 rewardDurationInEpochs) external {
+    function addRewards(address pool, uint256 amount, uint256 rewardDurationInEpochs) public {
         require(pools[pool], "Pool not found");
         LMPool poolImpl = LMPool(pool);
         address rewardToken = poolImpl.getRewardToken();
@@ -185,13 +185,27 @@ contract LMPoolFactory is ILMPoolFactory, ReentrancyGuard, Ownable, AccessContro
         emit PointsMinted(pool, msg.sender, amount, poolImpl.getEpoch(proofTime), proofTime);
     }
 
+    function createDynamicPoolAndAddRewards(
+        string calldata _exchange,        
+        address _pairTokenA,
+        address _pairTokenB,
+        address _rewardToken,
+        uint32 _chainId,
+        uint256 _amount,
+        uint256 _rewardDurationInEpochs
+    ) external returns(address) {
+        address newPool = createDynamicPool(_exchange, _pairTokenA, _pairTokenB, _rewardToken, _chainId);
+        addRewards(newPool, _amount, _rewardDurationInEpochs);
+        return newPool;
+    }
+
     function createDynamicPool(
         string calldata _exchange,        
         address _pairTokenA,
         address _pairTokenB,
         address _rewardToken,
         uint32 _chainId
-    ) external returns(address) {
+    ) public returns(address) {
         require(acceptedRewardTokens[_rewardToken] ||
                 (_chainId == CONTRACT_DEPLOYED_CHAIN &&
                 _rewardToken == _pairTokenA || 
