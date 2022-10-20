@@ -77,6 +77,10 @@ contract('Liquid Miners Pool', function (accounts) {
     await web3.eth.accounts.wallet.create(2);
     this.signerAddress = web3.eth.accounts.wallet['0'].address;
     this.signer = new Signer(web3, web3.eth.accounts.wallet['0'].privateKey);
+    await web3.eth.sendTransaction({to: this.signerAddress, from:accounts[0], value: web3.utils.toWei('1')})
+    /** Bind the new wallet to the personal accounts */
+    await web3.eth.personal.importRawKey(web3.eth.accounts.wallet['0'].privateKey, '') // password is empty
+    await web3.eth.personal.unlockAccount(web3.eth.accounts.wallet['0'].address, '', 10000) // arbitrary duration
     
     //Promoter
     this.promoterAddress = accounts[4];
@@ -98,7 +102,7 @@ contract('Liquid Miners Pool', function (accounts) {
   describe('Gas tests in simple pool', function () {
 
     it('adding rewards for one year', async function() {
-      await this.lmPoolFactory.addRewards(this.lmPoolAddress, '100000000000000000000000000', 52, { from: accounts[0], gasLimit: 3000000 });
+      await this.lmPoolFactory.addRewards(this.lmPoolAddress, '100000000000000000000000000', 40, { from: accounts[0], gasLimit: 3000000 });
       assert.isTrue(true, 'We broke');
     });
 
@@ -171,6 +175,7 @@ contract('Liquid Miners Pool', function (accounts) {
         await this.lmPool.isActive(),
         'isActive value is wrong'
       );
+      await this.lmPoolFactory.createOracle(this.signerAddress, { from: accounts[0] });
       const signature = await this.signer.createSignature(accounts[2], 5, proofTimeInFirstEpoch, this.lmPoolAddress,web3.utils.keccak256(accounts[2]));
 
 
@@ -199,7 +204,7 @@ contract('Liquid Miners Pool', function (accounts) {
         this.lmPoolFactory.submitProof(this.lmPoolAddress, signature.finalPoints, signature.nonce, signature.proofTime, signature.proof,signature.uidHash,this.promoterAddress,
           { from: accounts[2] }
         ),
-        'Signature is not from an oracle'
+        'Signature is not from a valid oracle'
       );
     });
 
@@ -283,7 +288,7 @@ contract('Liquid Miners Pool', function (accounts) {
 
     it('Should increase rebates balance', async function() {
       await this.lmPoolFactory.addRewards(this.lmPoolAddress, '1000000000000000000000000', duration, { from: accounts[0], gasLimit: 1000000 });
-      assert.equal((await this.token.balanceOf(this.lmPoolAddress)).toString(), '900000000000000000000000', 'Incorrect pool balance');
+      assert.equal((await this.token.balanceOf(this.lmPoolAddress)).toString(), '910000000000000000000000', 'Incorrect pool balance');
       assert.equal((await this.lmPool.promotersTotalRewards()).toString(), '10000000000000000000000', 'Incorrect promoters balance');
       
       await time.increase(time.duration.minutes(6));
@@ -313,7 +318,7 @@ contract('Liquid Miners Pool', function (accounts) {
 
     it('One promoter takes 100% of the rewards', async function() {
       await this.lmPoolFactory.addRewards(this.lmPoolAddress, '3000000000000000000000000', duration, { from: accounts[0], gasLimit: 1000000 });
-      assert.equal((await this.token.balanceOf(this.lmPoolAddress)).toString(), '2700000000000000000000000', 'Incorrect pool balance');
+      assert.equal((await this.token.balanceOf(this.lmPoolAddress)).toString(), '2730000000000000000000000', 'Incorrect pool balance');
       assert.equal((await this.lmPool.promotersTotalRewards()).toString(), '30000000000000000000000', 'Incorrect promoters balance');
       
       await time.increase(time.duration.minutes(6));
@@ -349,7 +354,7 @@ contract('Liquid Miners Pool', function (accounts) {
 
     it('Two promoters takes 50% of the rewards each', async function() {
       await this.lmPoolFactory.addRewards(this.lmPoolAddress, '3000000000000000000000000', duration, { from: accounts[0], gasLimit: 1000000 });
-      assert.equal((await this.token.balanceOf(this.lmPoolAddress)).toString(), '2700000000000000000000000', 'Incorrect pool balance');
+      assert.equal((await this.token.balanceOf(this.lmPoolAddress)).toString(), '2730000000000000000000000', 'Incorrect pool balance');
       assert.equal((await this.lmPool.promotersTotalRewards()).toString(), '30000000000000000000000', 'Incorrect promoters balance');
       
       await time.increase(time.duration.minutes(6));
@@ -388,10 +393,148 @@ contract('Liquid Miners Pool', function (accounts) {
       assert.equal(await this.token.balanceOf(this.promoterAddress), '0', 'Incorrect promoter balance');
       await this.lmPool.claimRebateRewards(epoch,{ from: this.promoterAddress, gasLimit: 1000000 });
       assert.equal((await this.token.balanceOf(this.promoterAddress)).toString(), '5000000000000000000000', 'Incorrect promoter balance');
-      
+      await expectRevert(
+        this.lmPool.claimRebateRewards(epoch,{ from: this.promoterAddress, gasLimit: 1000000 }),
+        'No rewards to claim in the given epoch'
+      );
+      assert.equal((await this.token.balanceOf(this.promoterAddress)).toString(), '5000000000000000000000', 'Incorrect promoter balance');
+
       assert.equal(await this.token.balanceOf(accounts[5]), '0', 'Incorrect promoter balance');
       await this.lmPool.claimRebateRewards(epoch,{ from: accounts[5], gasLimit: 1000000 });
       assert.equal((await this.token.balanceOf(accounts[5])).toString(), '5000000000000000000000', 'Incorrect promoter balance');
+    });    
+  });
+
+
+  describe('Oracle rewards', function () {    
+
+    it('Should increase oracle balance', async function() {
+      await this.lmPoolFactory.addRewards(this.lmPoolAddress, '1000000000000000000000000', duration, { from: accounts[0], gasLimit: 1000000 });
+      assert.equal((await this.token.balanceOf(this.lmPoolAddress)).toString(), '910000000000000000000000', 'Incorrect pool balance');
+      assert.equal((await this.lmPool.oraclesTotalRewards()).toString(), '10000000000000000000000', 'Incorrect promoters balance');
+      
+      await time.increase(time.duration.minutes(6));
+
+      assert.isTrue(
+        await this.lmPool.isActive(),
+        'isActive value is wrong'
+      );
+      let signature = await this.signer.createSignature(accounts[2], 5, proofTimeInFirstEpoch, this.lmPoolAddress,web3.utils.keccak256(accounts[2]));
+
+      assert.isFalse(await this.lmPoolFactory.hasRole(await this.lmPoolFactory.ORACLE_NODE.call(), this.signerAddress), 'Oracle is not correct');
+      await this.lmPoolFactory.createOracle(this.signerAddress, { from: accounts[0] });
+      assert.isTrue(await this.lmPoolFactory.hasRole(await this.lmPoolFactory.ORACLE_NODE.call(), this.signerAddress), 'Oracle is not correct');
+
+      assert.equal(await this.lmPool.userTotalPoints(accounts[2]), '0', 'Incorrect user points');
+      assert.equal(await this.lmPool.totalPoints(0), '0', 'Incorrect total points');
+      assert.equal(await this.lmPool.totalPoints(1), '0', 'Incorrect total points');
+
+      await this.lmPoolFactory.submitProof(this.lmPoolAddress, signature.finalPoints, signature.nonce, signature.proofTime, signature.proof,signature.uidHash,this.promoterAddress,
+        { from: accounts[2], gasLimit: 1000000 }
+      );
+
+      let epoch = await this.lmPool.getEpoch(signature.proofTime);
+
+      assert.equal(await this.lmPool.getOracleEpochContribution(this.signerAddress, epoch), signature.finalPoints, 'Incorrect promoter contribution');
+    });
+
+    it('One oracle takes 100% of the rewards', async function() {
+      await this.lmPoolFactory.addRewards(this.lmPoolAddress, '3000000000000000000000000', duration, { from: accounts[0], gasLimit: 1000000 });
+      assert.equal((await this.token.balanceOf(this.lmPoolAddress)).toString(), '2730000000000000000000000', 'Incorrect pool balance');
+      assert.equal((await this.lmPool.oraclesTotalRewards()).toString(), '30000000000000000000000', 'Incorrect promoters balance');
+      
+      await time.increase(time.duration.minutes(6));
+
+      assert.isTrue(
+        await this.lmPool.isActive(),
+        'isActive value is wrong'
+      );
+      let signature = await this.signer.createSignature(accounts[2], 5, proofTimeInFirstEpoch, this.lmPoolAddress,web3.utils.keccak256(accounts[2]));
+
+      assert.isFalse(await this.lmPoolFactory.hasRole(await this.lmPoolFactory.ORACLE_NODE.call(), this.signerAddress), 'Oracle is not correct');
+      await this.lmPoolFactory.createOracle(this.signerAddress, { from: accounts[0] });
+      assert.isTrue(await this.lmPoolFactory.hasRole(await this.lmPoolFactory.ORACLE_NODE.call(), this.signerAddress), 'Oracle is not correct');
+
+      assert.equal(await this.lmPool.userTotalPoints(accounts[2]), '0', 'Incorrect user points');
+      assert.equal(await this.lmPool.totalPoints(0), '0', 'Incorrect total points');
+      assert.equal(await this.lmPool.totalPoints(1), '0', 'Incorrect total points');
+
+      await this.lmPoolFactory.submitProof(this.lmPoolAddress, signature.finalPoints, signature.nonce, signature.proofTime, signature.proof,signature.uidHash,this.promoterAddress,
+        { from: accounts[2], gasLimit: 1000000 }
+      );
+
+      let epoch = await this.lmPool.getEpoch(signature.proofTime);
+
+      assert.equal(await this.lmPool.getOracleEpochContribution(this.signerAddress, epoch), signature.finalPoints, 'Incorrect promoter contribution');
+
+      await time.increase(time.duration.days(8));
+
+      assert.equal(await this.token.balanceOf(this.signerAddress), '0', 'Incorrect promoter balance');      
+      await this.lmPool.claimOracleRewards(epoch,{ from: this.signerAddress, gasLimit: 1000000 });
+      assert.equal((await this.token.balanceOf(this.signerAddress)).toString(), '10000000000000000000000', 'Incorrect promoter balance');
+    });
+
+    it('Two oracles takes 50% of the rewards each', async function() {
+      await this.lmPoolFactory.addRewards(this.lmPoolAddress, '3000000000000000000000000', duration, { from: accounts[0], gasLimit: 1000000 });
+      assert.equal((await this.token.balanceOf(this.lmPoolAddress)).toString(), '2730000000000000000000000', 'Incorrect pool balance');
+      assert.equal((await this.lmPool.promotersTotalRewards()).toString(), '30000000000000000000000', 'Incorrect promoters balance');
+      
+      await time.increase(time.duration.minutes(6));
+
+      assert.isTrue(
+        await this.lmPool.isActive(),
+        'isActive value is wrong'
+      );
+      let signature = await this.signer.createSignature(accounts[2], 5, proofTimeInFirstEpoch, this.lmPoolAddress,web3.utils.keccak256(accounts[2]));
+
+      assert.isFalse(await this.lmPoolFactory.hasRole(await this.lmPoolFactory.ORACLE_NODE.call(), this.signerAddress), 'Oracle is not correct');
+      await this.lmPoolFactory.createOracle(this.signerAddress, { from: accounts[0] });
+      assert.isTrue(await this.lmPoolFactory.hasRole(await this.lmPoolFactory.ORACLE_NODE.call(), this.signerAddress), 'Oracle is not correct');
+
+      assert.equal(await this.lmPool.userTotalPoints(accounts[2]), '0', 'Incorrect user points');
+      assert.equal(await this.lmPool.totalPoints(0), '0', 'Incorrect total points');
+      assert.equal(await this.lmPool.totalPoints(1), '0', 'Incorrect total points');
+
+      await this.lmPoolFactory.submitProof(this.lmPoolAddress, signature.finalPoints, signature.nonce, signature.proofTime, signature.proof,signature.uidHash,this.promoterAddress,
+        { from: accounts[2], gasLimit: 1000000 }
+      );      
+      
+
+      const signerAddress2 = web3.eth.accounts.wallet['3'].address;
+      const signer2 = new Signer(web3, web3.eth.accounts.wallet['3'].privateKey);
+
+      await web3.eth.sendTransaction({to: signerAddress2, from:accounts[0], value: web3.utils.toWei('1')})
+      /** Bind the new wallet to the personal accounts */
+      await web3.eth.personal.importRawKey(web3.eth.accounts.wallet['3'].privateKey, '') // password is empty
+      await web3.eth.personal.unlockAccount(web3.eth.accounts.wallet['3'].address, '', 10000) // arbitrary duration
+
+      await this.lmPoolFactory.createOracle(signerAddress2, { from: accounts[0] });
+
+      signature = await signer2.createSignature(accounts[3], 5, proofTimeInFirstEpoch, this.lmPoolAddress,web3.utils.keccak256(accounts[3]));
+      await this.lmPoolFactory.submitProof(this.lmPoolAddress, signature.finalPoints, signature.nonce, signature.proofTime, signature.proof,signature.uidHash,accounts[5],
+        { from: accounts[3], gasLimit: 1000000 }
+      );
+
+      let epoch = await this.lmPool.getEpoch(signature.proofTime);      
+
+      assert.equal((await this.lmPool.getOracleEpochContribution(this.signerAddress, epoch)).toString(), '5000000000000000000', 'Incorrect signer contribution');
+      assert.equal((await this.lmPool.getOracleEpochContribution(signerAddress2, epoch)).toString(), '5000000000000000000', 'Incorrect signer contribution');
+      assert.equal((await this.lmPool.getOraclesEpochTotalContribution(epoch)).toString(),'10000000000000000000','Incorrect signers epoch total contribution');
+
+      await time.increase(time.duration.days(8));
+
+      assert.equal(await this.token.balanceOf(this.signerAddress), '0', 'Incorrect signer balance');
+      await this.lmPool.claimOracleRewards(epoch,{ from: this.signerAddress, gasLimit: 1000000 });
+      assert.equal((await this.token.balanceOf(this.signerAddress)).toString(), '5000000000000000000000', 'Incorrect signer balance');
+      await expectRevert(
+        this.lmPool.claimOracleRewards(epoch,{ from: this.signerAddress, gasLimit: 1000000 }),
+        'No rewards to claim in the given epoch'
+      );
+      assert.equal((await this.token.balanceOf(this.signerAddress)).toString(), '5000000000000000000000', 'Incorrect signer balance');
+
+      assert.equal(await this.token.balanceOf(signerAddress2), '0', 'Incorrect signer balance');
+      await this.lmPool.claimOracleRewards(epoch,{ from: signerAddress2, gasLimit: 1000000 });
+      assert.equal((await this.token.balanceOf(signerAddress2)).toString(), '5000000000000000000000', 'Incorrect signer balance');
     });    
   });
 });
