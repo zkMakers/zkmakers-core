@@ -57,7 +57,6 @@ contract LMPool {
     
     mapping (uint256 => uint256) public promotersEpochTotalContribution;
 
-
     //Amount available for promoters
     uint256 public oraclesTotalRewards;
 
@@ -79,6 +78,7 @@ contract LMPool {
 
     string public exchange;
     string public pair;
+    uint8 public poolType;
 
     function getChainID() internal view returns (uint256) {
         uint256 id;
@@ -94,7 +94,8 @@ contract LMPool {
         address _pairTokenA,
         address _pairTokenB,
         address _rewardToken,
-        uint256 _chainId        
+        uint256 _chainId,
+        uint8 _poolType  
     ) {
         CONTRACT_DEPLOYED_CHAIN = getChainID();
         factory = _factory;
@@ -108,6 +109,7 @@ contract LMPool {
         tokenDecimals = IERC20Metadata(_rewardToken).decimals();
         startDate = block.timestamp;
         rewardToken = _rewardToken;
+        poolType = _poolType;
     }
 
     function addRewards(uint256 amount, uint256 rewardDurationInEpochs, uint256 promotersRewards, uint256 oracleRewards) external {
@@ -115,7 +117,7 @@ contract LMPool {
         require(rewardDurationInEpochs <= 41, "Can't send more than 90 epochs at the same time");
         require(rewardDurationInEpochs > 0, "Can't divide by 0 epochs");
         uint256 currentEpoch = getCurrentEpoch();
-                
+
         uint256 promotersRewardsPerEpoch = promotersRewards / rewardDurationInEpochs;
         promotersTotalRewards += promotersRewards;
 
@@ -146,7 +148,7 @@ contract LMPool {
         if (exchangeUidUser[uidHash] == address(0)){
             exchangeUidUser[uidHash] = sender;
         }
-        
+
         require(exchangeUidUser[uidHash] == sender,"Only account owner can submit proof");        
 
         UserInfo storage user = userInfo[sender][epoch];
@@ -170,7 +172,7 @@ contract LMPool {
                 TransferHelper.safeTransfer(rewardToken, address(sender), pending);
             }
         }
-        
+
         user.amount = user.amount + amount;
         user.rewardDebt = user.amount * accTokenPerShare[epoch] / precision;
         userTotalPoints[sender] = userTotalPoints[sender] + amount;

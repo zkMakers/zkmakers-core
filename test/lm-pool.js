@@ -60,6 +60,7 @@ contract('Liquid Miners Pool', function (accounts) {
       this.tokenB.address,
       this.token.address,
       chainId,
+      0,
       { from: accounts[0] }
     );
     await this.lmPoolFactory.createDynamicPool(
@@ -68,6 +69,7 @@ contract('Liquid Miners Pool', function (accounts) {
       this.tokenB.address,
       this.token.address,
       chainId,
+      0,
       { from: accounts[0] }
     );
     

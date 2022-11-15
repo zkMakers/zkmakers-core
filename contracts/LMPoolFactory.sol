@@ -14,6 +14,9 @@ import "./ProofVerifier.sol";
 contract LMPoolFactory is ILMPoolFactory, ReentrancyGuard, Ownable, AccessControl {
     bytes32 public constant OWNER_ADMIN = keccak256("OWNER_ADMIN");
     bytes32 public constant ORACLE_NODE = keccak256("ORACLE_NODE");
+    uint8 public constant POOL_TYPE_VOLUME = 0;
+    uint8 public constant POOL_TYPE_LIQUIDITY = 1;
+
 
     //ID OF THE CHAIN WHERE THE FACTORY IS DEPLOYED
     uint256 private CONTRACT_DEPLOYED_CHAIN;
@@ -42,8 +45,8 @@ contract LMPoolFactory is ILMPoolFactory, ReentrancyGuard, Ownable, AccessContro
     mapping(address => bool) public pools;
     ProofVerifier public proofVerifier;
 
-    // Token A -> Token B -> Reward Token -> Exchange -> Pool
-    mapping(address => mapping(address => mapping(address => mapping(string => address)))) public getPool;
+    // Token A -> Token B -> Reward Token -> Exchange -> Type -> Pool
+    mapping(address => mapping(address => mapping(address => mapping(string => mapping(uint8 => address))))) public getPool;
 
     event PoolCreated(
         address indexed pool,
@@ -218,9 +221,10 @@ contract LMPoolFactory is ILMPoolFactory, ReentrancyGuard, Ownable, AccessContro
         address _rewardToken,
         uint32 _chainId,
         uint256 _amount,
-        uint256 _rewardDurationInEpochs
+        uint256 _rewardDurationInEpochs,
+        uint8 _poolType
     ) external returns(address) {
-        address newPool = createDynamicPool(_exchange, _pairTokenA, _pairTokenB, _rewardToken, _chainId);
+        address newPool = createDynamicPool(_exchange, _pairTokenA, _pairTokenB, _rewardToken, _chainId, _poolType);
         addRewards(newPool, _amount, _rewardDurationInEpochs);
         return newPool;
     }
@@ -230,7 +234,8 @@ contract LMPoolFactory is ILMPoolFactory, ReentrancyGuard, Ownable, AccessContro
         address _pairTokenA,
         address _pairTokenB,
         address _rewardToken,
-        uint32 _chainId
+        uint32 _chainId,
+        uint8 _poolType
     ) public returns(address) {
         require(acceptedRewardTokens[_rewardToken] ||
                 (_chainId == CONTRACT_DEPLOYED_CHAIN &&
@@ -238,8 +243,8 @@ contract LMPoolFactory is ILMPoolFactory, ReentrancyGuard, Ownable, AccessContro
                 _rewardToken == _pairTokenB), "LMPoolFactory: Reward token is not accepted.");
         require(acceptedExchanges[_exchange], "LMPoolFactory: Exchange is not accepted.");
         require(acceptedBlockchains[_chainId], "LMPoolFactory: Blockchain is not accepted.");
-        require(getPool[_pairTokenA][_pairTokenB][_rewardToken][_exchange] == address(0), "LMPoolFactory: Pool already exists");
-        require(getPool[_pairTokenB][_pairTokenA][_rewardToken][_exchange] == address(0), "LMPoolFactory: Pool already exists");
+        require(getPool[_pairTokenA][_pairTokenB][_rewardToken][_exchange][_poolType] == address(0), "LMPoolFactory: Pool already exists");
+        require(getPool[_pairTokenB][_pairTokenA][_rewardToken][_exchange][_poolType] == address(0), "LMPoolFactory: Pool already exists");
         
         LMPool newPool = new LMPool(
             address(this),
@@ -247,14 +252,15 @@ contract LMPoolFactory is ILMPoolFactory, ReentrancyGuard, Ownable, AccessContro
             _pairTokenA,
             _pairTokenB,
             _rewardToken,
-            _chainId
+            _chainId,
+            _poolType
         );
 
         allPools.push(address(newPool));
         pools[address(newPool)] = true;
 
-        getPool[_pairTokenA][_pairTokenB][_rewardToken][_exchange] = address(newPool);
-        getPool[_pairTokenB][_pairTokenA][_rewardToken][_exchange] = address(newPool);
+        getPool[_pairTokenA][_pairTokenB][_rewardToken][_exchange][_poolType] = address(newPool);
+        getPool[_pairTokenB][_pairTokenA][_rewardToken][_exchange][_poolType] = address(newPool);
 
         emit PoolCreated(
             address(newPool),
