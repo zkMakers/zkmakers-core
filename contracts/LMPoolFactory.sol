@@ -54,7 +54,8 @@ contract LMPoolFactory is ILMPoolFactory, ReentrancyGuard, Ownable, AccessContro
         address pairTokenB,
         uint32 chainId,
         uint256 created,
-        string exchange
+        string exchange,
+        address creator
     );
 
     event RewardsAdded(
@@ -268,7 +269,8 @@ contract LMPoolFactory is ILMPoolFactory, ReentrancyGuard, Ownable, AccessContro
             _pairTokenB,
             _chainId,
             block.timestamp,
-            _exchange
+            _exchange,
+            msg.sender
         );
 
         return address(newPool);
