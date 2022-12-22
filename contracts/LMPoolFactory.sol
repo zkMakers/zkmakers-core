@@ -3,7 +3,6 @@ pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
-import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "./LMPool.sol";
@@ -11,7 +10,7 @@ import "./ILMPoolFactory.sol";
 import "./TransferHelper.sol";
 import "./ProofVerifier.sol";
 
-contract LMPoolFactory is ILMPoolFactory, ReentrancyGuard, Ownable, AccessControl {
+contract LMPoolFactory is ILMPoolFactory, Ownable, AccessControl {
     bytes32 public constant OWNER_ADMIN = keccak256("OWNER_ADMIN");
     bytes32 public constant ORACLE_NODE = keccak256("ORACLE_NODE");
     uint8 public constant POOL_TYPE_VOLUME = 0;

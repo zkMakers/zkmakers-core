@@ -4,10 +4,11 @@ pragma solidity ^0.8.0;
 import "@openzeppelin/contracts/utils/Address.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "./ILMPoolFactory.sol";
 import "./TransferHelper.sol";
 
-contract LMPool {
+contract LMPool is ReentrancyGuard {
 
     //ID OF THE CHAIN WHERE THE POOL IS DEPLOYED
     uint256 private CONTRACT_DEPLOYED_CHAIN;
@@ -138,7 +139,7 @@ contract LMPool {
         }
     }
 
-    function submitProof(address sender, uint256 amount, uint256 nonce, uint256 proofTime, bytes32 uidHash, address promoter, address proofSigner) isPoolRunning external {
+    function submitProof(address sender, uint256 amount, uint256 nonce, uint256 proofTime, bytes32 uidHash, address promoter, address proofSigner) isPoolRunning nonReentrant external {
         require(msg.sender == factory, "Only factory can add proofs");
         require(!usedNonces[nonce], "Nonce already used");
         uint256 epoch = getEpoch(proofTime);
