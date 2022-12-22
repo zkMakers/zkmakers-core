@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity 0.8.7;
 
 import "@openzeppelin/contracts/utils/Address.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
@@ -22,7 +22,7 @@ contract LMPool is ReentrancyGuard {
     }
     // Epoch => Token Per Share
     mapping (uint256 => uint256) accTokenPerShare;
-    uint256 lastRewardEpoch;
+    uint256 public lastRewardEpoch;
     // Wallet => Epoch => Info
     mapping (address => mapping (uint256 => UserInfo)) public userInfo;
     // Wallet => Total Points
@@ -44,9 +44,9 @@ contract LMPool is ReentrancyGuard {
     uint256 public tokenDecimals;
     uint256 public startDate;
     address public factory;
-    uint256 public epochDuration = 7 days;
-    uint256 public delayClaim = 3 days; // We need to wait 3 days after the epoch for claiming
-    uint256 public totalRewards;    
+    uint256 public constant epochDuration = 7 days;
+    uint256 public constant delayClaim = 3 days; // We need to wait 3 days after the epoch for claiming
+    uint256 public totalRewards;
     
     //Amount available for promoters
     uint256 public promotersTotalRewards;
@@ -75,7 +75,7 @@ contract LMPool is ReentrancyGuard {
     // User => Epoch => Last Proof Timestamp
     mapping(address => mapping(uint256 => uint256)) public lastProofTime;
 
-    uint256 precision = 1e12;
+    uint256 public constant precision = 1e12;
 
     string public exchange;
     string public pair;
@@ -192,13 +192,13 @@ contract LMPool is ReentrancyGuard {
     }
 
     function pendingOracleReward(address _user, uint256 epoch) public view returns (uint256) {
-        uint256 percentage = oraclesEpochContribution[_user][epoch] * 100 / oraclesEpochTotalContribution[epoch];
-        return oraclesRewardPerEpoch[epoch] * percentage / 100;
+        uint256 percentage = oraclesEpochContribution[_user][epoch] * 10000 / oraclesEpochTotalContribution[epoch];
+        return oraclesRewardPerEpoch[epoch] * percentage / 10000;
     }
 
     function pendingRebateReward(address _user, uint256 epoch) public view returns (uint256) {
-        uint256 percentage = promoterEpochContribution[_user][epoch] * 100 / promotersEpochTotalContribution[epoch];
-        return promotersRewardPerEpoch[epoch] * percentage / 100;
+        uint256 percentage = promoterEpochContribution[_user][epoch] * 10000 / promotersEpochTotalContribution[epoch];
+        return promotersRewardPerEpoch[epoch] * percentage / 10000;
     }
 
     function pendingReward(address _user, uint256 epoch) external view returns (uint256) {
@@ -233,11 +233,11 @@ contract LMPool is ReentrancyGuard {
         return startDate;
     }
     
-    function getEpochDuration() public view returns (uint256) {
+    function getEpochDuration() external pure returns (uint256) {
         return epochDuration;
     }
 
-    function getLastEpoch() public view returns (uint256) {
+    function getLastEpoch() external view returns (uint256) {
         return lastEpoch;
     }
 
@@ -245,19 +245,19 @@ contract LMPool is ReentrancyGuard {
         return rewardPerEpoch[epoch];
     }
 
-    function getPromoterEpochContribution(address promoter,uint256 epoch) public view returns (uint256) {
+    function getPromoterEpochContribution(address promoter,uint256 epoch) external view returns (uint256) {
         return promoterEpochContribution[promoter][epoch];
     }
 
-    function getPromotersEpochTotalContribution(uint256 epoch) public view returns (uint256) {
+    function getPromotersEpochTotalContribution(uint256 epoch) external view returns (uint256) {
         return promotersEpochTotalContribution[epoch];
     }
 
-    function getOracleEpochContribution(address oracle,uint256 epoch) public view returns (uint256) {
+    function getOracleEpochContribution(address oracle,uint256 epoch) external view returns (uint256) {
         return oraclesEpochContribution[oracle][epoch];
     }
 
-    function getOraclesEpochTotalContribution(uint256 epoch) public view returns (uint256) {
+    function getOraclesEpochTotalContribution(uint256 epoch) external view returns (uint256) {
         return oraclesEpochTotalContribution[epoch];
     }
 
@@ -266,18 +266,21 @@ contract LMPool is ReentrancyGuard {
     }
 
     function multiClaim(uint256[] calldata epochs) external {
+        require(epochs.length <= 100, "LMPool: epochs amount must be less or equal than 100");
         for (uint256 i = 0; i < epochs.length; i++) {
             claim(epochs[i]);
         }
     }
 
     function multiClaimRebateRewards(uint256[] calldata epochs) external {
+        require(epochs.length <= 100, "LMPool: epochs amount must be less or equal than 100");
         for (uint256 i = 0; i < epochs.length; i++) {
             claimRebateRewards(epochs[i]);
         }
     }
 
     function multiClaimOracleRewards(uint256[] calldata epochs) external {
+        require(epochs.length <= 100, "LMPool: epochs amount must be less or equal than 100");
         for (uint256 i = 0; i < epochs.length; i++) {
             claimOracleRewards(epochs[i]);
         }

@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity 0.8.7;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "./LMPool.sol";
 import "./ILMPoolFactory.sol";
 import "./TransferHelper.sol";
@@ -18,21 +19,25 @@ contract LMPoolFactory is ILMPoolFactory, Ownable, AccessControl {
 
 
     //ID OF THE CHAIN WHERE THE FACTORY IS DEPLOYED
-    uint256 private CONTRACT_DEPLOYED_CHAIN;
+    uint256 private immutable CONTRACT_DEPLOYED_CHAIN;
 
     address[] public allPools;
     
     //Fee for reward token
     uint256 fee = 900; // 9%
+    uint256 constant maxFee = 2700; // 27%
 
     //Promoters fee
     uint256 promotersFee = 100; // 1%
+    uint256 constant maxPromotersFee = 300; //3%
 
     //Oracle fee
     uint256 oracleFee = 100; // 1%
+    uint256 constant maxOracleFee = 300; // 3%
     
     //Fee for reward with custom token
     uint256 customTokenFee = 1900; // 19%
+    uint256 constant maxCustomTokenFee = 4000; //40%
 
     // ERC20 => Accepted
     mapping(address => bool) public acceptedRewardTokens;
@@ -84,6 +89,30 @@ contract LMPoolFactory is ILMPoolFactory, Ownable, AccessControl {
         uint256 created
     );
 
+    event RewardTokenStatus(
+        address indexed token,
+        bool accepted
+    );
+
+    event FeeSetted(
+        uint indexed fee,
+        string feeType
+    );
+
+    event BlockchainStatus(
+        uint256 indexed chainId,
+        bool added
+    );
+
+    event ExchangeStatus(
+        string exchange,
+        bool added
+    );
+
+    event ProofVerifierSetted(
+        ProofVerifier proofVerifier
+    );
+
     constructor() {
         _grantRole(OWNER_ADMIN, msg.sender);
         CONTRACT_DEPLOYED_CHAIN = getChainID();
@@ -120,34 +149,45 @@ contract LMPoolFactory is ILMPoolFactory, Ownable, AccessControl {
 
     function acceptRewardToken(address token) external onlyAdmin {
         acceptedRewardTokens[token] = true;
+        emit RewardTokenStatus(token, true);
     }
 
     function rejectRewardToken(address token) external onlyAdmin {
         acceptedRewardTokens[token] = false;
+        emit RewardTokenStatus(token, false);
     }
 
     function withdraw(address token, address receiver, uint256 amount) external onlyAdmin {
-        IERC20(token).transfer(receiver, amount);
+        SafeERC20.safeTransfer(IERC20(token),receiver, amount);
     }
 
     function setFee(uint256 amount) external onlyAdmin {
+        require(amount <= maxFee,"LMPoolFactory: fee exceeds max permitted");
         fee = amount;
+        emit FeeSetted(fee,"Pool fee");
     }
 
     function setPromotersFee(uint256 amount) external onlyAdmin {
+        require(amount <= maxPromotersFee,"LMPoolFactory: promoters fee exceeds max permitted");
         promotersFee = amount;
+        emit FeeSetted(fee,"Promoter fee");
     }
 
     function setOracleFee(uint256 amount) external onlyAdmin {
+        require(amount <= maxOracleFee,"LMPoolFactory: oracle fee exceeds max permitted");
         oracleFee = amount;
+        emit FeeSetted(fee,"Oracle fee");
     }
 
     function setCustomTokenFee(uint256 amount) external onlyAdmin {
+        require(amount <= maxCustomTokenFee,"LMPoolFactory: custom token fee exceeds max permitted");
         customTokenFee = amount;
+        emit FeeSetted(fee,"Custom token fee");
     }
 
     function setProofVerifier(ProofVerifier newProofVerifier) external onlyAdmin {
         proofVerifier = newProofVerifier;
+        emit ProofVerifierSetted(newProofVerifier);
     }
     
     function getProofVerifier() override external view returns (IProofVerifier) {
@@ -156,18 +196,22 @@ contract LMPoolFactory is ILMPoolFactory, Ownable, AccessControl {
 
     function addBlockchain(uint32 chainId) external onlyAdmin {
         acceptedBlockchains[chainId] = true;
+        emit BlockchainStatus(chainId, true);
     }
 
     function removeBlockchain(uint32 chainId) external onlyAdmin {
         acceptedBlockchains[chainId] = false;
+        emit BlockchainStatus(chainId, false);
     }
 
     function addExchange(string calldata name) external onlyAdmin {
         acceptedExchanges[name] = true;
+        emit ExchangeStatus(name, true);
     }
 
     function removeExchange(string calldata name) external onlyAdmin {
         acceptedExchanges[name] = false;
+        emit ExchangeStatus(name, false);
     }
 
     function addRewards(address pool, uint256 amount, uint256 rewardDurationInEpochs) public {
@@ -183,8 +227,8 @@ contract LMPoolFactory is ILMPoolFactory, Ownable, AccessControl {
         uint256 promotersRewards = (amount * promotersFee) / 10000;
 
         //Calculates amount of rewards for oracles
-        uint256 oracleRewards = (amount * oracleFee) / 10000;
-
+        uint256 oracleRewards = (amount * oracleFee) / 10000;        
+        
         uint256 rewards = amount - feeAmount - promotersRewards - oracleRewards;
         
         TransferHelper.safeTransferFrom(poolImpl.getRewardToken(), msg.sender, address(this), feeAmount);
