@@ -206,6 +206,7 @@ contract LMPoolFactory is ILMPoolFactory, Ownable, AccessControl {
 
     function submitProof(address pool, uint256 amount, uint256 nonce, uint256 proofTime, bytes calldata proof, bytes32 uidHash, address promoter) external {
         require(pools[pool], "Pool not found");
+        require(promoter != address(0), "Promoter can't be the zero address");
         address proofSigner = proofVerifier.verify(msg.sender, amount, nonce, proofTime, pool, uidHash, proof);
         LMPool poolImpl = LMPool(pool);
         uint256 epoch = poolImpl.getEpoch(proofTime);
