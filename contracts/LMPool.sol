@@ -115,7 +115,7 @@ contract LMPool is ReentrancyGuard {
 
     function addRewards(uint256 amount, uint256 rewardDurationInEpochs, uint256 promotersRewards, uint256 oracleRewards) external {
         require(msg.sender == factory, "Only factory can add internal rewards");
-        require(rewardDurationInEpochs <= 41, "Can't send more than 90 epochs at the same time");
+        require(rewardDurationInEpochs <= 41, "Can't send more than 41 epochs at the same time");
         require(rewardDurationInEpochs > 0, "Can't divide by 0 epochs");
         uint256 currentEpoch = getCurrentEpoch();
 
