@@ -108,14 +108,58 @@ contract('Liquid Miners Pool', function (accounts) {
       assert.isTrue(true, 'We broke');
     });
 
-    it('claim 30 epochs', async function() {
-      const epochNumber = 5;
+    it('multi claim 3 epochs', async function() {
+      await this.lmPoolFactory.createOracle(this.signerAddress, { from: accounts[0] });
+      await this.lmPoolFactory.addRewards(this.lmPoolAddress, '100000000000000000000000000', 3, { from: accounts[0], gasLimit: 1000000 });
+      assert.equal(await this.lmPool.totalRewards(), '89000000000000000000000000', 'Incorrect total rewards')
+      const epochNumber = 3;
       let epochs = [];
-      for (let i = 0; i < epochNumber; i++) {
+      for (let i = 1; i < epochNumber + 1; i++) {
         epochs.push(i);
+        const {0: start} = await this.lmPool.getProofTimeInverval(i, this.signerAddress);
+        assert.equal(await this.lmPool.getCurrentEpoch(), i, 'Incorrect epoch');
+        let signature = await this.signer.createSignature(accounts[2], 5, parseInt(start.toString()) + 1000, this.lmPoolAddress,web3.utils.keccak256(accounts[2]));
+        await this.lmPoolFactory.submitProof(this.lmPoolAddress, signature.finalPoints, signature.nonce, signature.proofTime, signature.proof, signature.uidHash,this.promoterAddress,
+          { from: accounts[2], gasLimit: 1000000 }
+        );
+        await time.increase(time.duration.hours(24 * 7 + 1)); // 7 days + 1 hour
       }
-      await time.increase(time.duration.days(7 * epochNumber + 1));
-      await this.lmPool.multiClaim(epochs, { from: accounts[0], gasLimit: 3000000 });
+      let user0 = await this.lmPool.userInfo(accounts[2], 0);
+      let user1 = await this.lmPool.userInfo(accounts[2], 1);
+      let user2 = await this.lmPool.userInfo(accounts[2], 2);
+      let user3 = await this.lmPool.userInfo(accounts[2], 3);
+      let user4 = await this.lmPool.userInfo(accounts[2], 4);
+      assert.equal(user0.amount, '0', 'Incorrect amount');
+      assert.equal(user1.amount, '5000000000000000000', 'Incorrect amount');
+      assert.equal(user2.amount, '5000000000000000000', 'Incorrect amount');
+      assert.equal(user3.amount, '5000000000000000000', 'Incorrect amount');
+      assert.equal(user4.amount, '0', 'Incorrect amount');
+      assert.equal(user0.rewardDebt, '0', 'Incorrect debt');
+      assert.equal(user1.rewardDebt, '0', 'Incorrect debt');
+      assert.equal(user2.rewardDebt, '0', 'Incorrect debt');
+      assert.equal(user3.rewardDebt, '0', 'Incorrect debt');
+      assert.equal(user4.rewardDebt, '0', 'Incorrect debt');
+      await time.increase(time.duration.hours(24 * 7 + 1)); // 7 days + 1 hour
+
+      assert.equal(await this.token.balanceOf(accounts[2]), '0', 'Incorrect reward balance');
+
+      await this.lmPool.multiClaim(epochs, { from: accounts[2], gasLimit: 3000000 });
+      user0 = await this.lmPool.userInfo(accounts[2], 0);
+      user1 = await this.lmPool.userInfo(accounts[2], 1);
+      user2 = await this.lmPool.userInfo(accounts[2], 2);
+      user3 = await this.lmPool.userInfo(accounts[2], 3);
+      user4 = await this.lmPool.userInfo(accounts[2], 4);
+      assert.equal(user0.amount, '0', 'Incorrect amount');
+      assert.equal(user1.amount, '5000000000000000000', 'Incorrect amount');
+      assert.equal(user2.amount, '5000000000000000000', 'Incorrect amount');
+      assert.equal(user3.amount, '5000000000000000000', 'Incorrect amount');
+      assert.equal(user4.amount, '0', 'Incorrect amount');
+      assert.equal(user0.rewardDebt, '0', 'Incorrect debt');
+      console.log(user1.rewardDebt.toString());
+      assert.equal(user1.rewardDebt, '29666666666666666665000000', 'Incorrect debt');
+      assert.equal(user2.rewardDebt, '29666666666666666665000000', 'Incorrect debt');
+      assert.equal(user3.rewardDebt, '29666666666666666665000000', 'Incorrect debt');
+      assert.equal(user4.rewardDebt, '0', 'Incorrect debt');
       assert.isTrue(true, 'We broke');
     });
 
@@ -279,9 +323,10 @@ contract('Liquid Miners Pool', function (accounts) {
       assert.equal((await this.token.balanceOf(accounts[2])).toString(), '14833333333333333330000000', 'Incorrect reward balance');
 
 
-      await this.lmPool.claim(1, { from: accounts[2], gasLimit: 1000000 });
-      assert.equal((await this.token.balanceOf(accounts[2])).toString(), '14833333333333333330000000', 'Incorrect reward balance');
-
+      await expectRevert(
+        this.lmPool.claim(1, { from: accounts[2], gasLimit: 1000000 }),
+        'There is nothing to claim for this epoch'
+      );
     });
 
   });
