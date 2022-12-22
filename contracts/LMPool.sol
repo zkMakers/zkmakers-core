@@ -362,7 +362,7 @@ contract LMPool {
     }
 
     // Update reward variables 
-    function updatePool(uint256 epoch) public {
+    function updatePool(uint256 epoch) private {
         uint256 currentEpoch = getCurrentEpoch();
         if (currentEpoch <= lastRewardEpoch) {
             return;
