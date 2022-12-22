@@ -158,23 +158,7 @@ contract LMPool is ReentrancyGuard {
 
         updatePool(epoch);
 
-        if (user.amount > 0) {
-            uint256 remainingRewards = totalRewards;
-            uint256 pending = (user.amount * accTokenPerShare[epoch] / precision) - user.rewardDebt;
-
-            if (remainingRewards == 0) {
-                pending = 0;
-            } else if (pending > remainingRewards) {
-                pending = remainingRewards;
-            }
-
-            if (pending > 0) {
-                TransferHelper.safeTransfer(rewardToken, address(sender), pending);
-            }
-        }
-
         user.amount = user.amount + amount;
-        user.rewardDebt = user.amount * accTokenPerShare[epoch] / precision;
         userTotalPoints[sender] = userTotalPoints[sender] + amount;
 
         totalPoints[epoch] = totalPoints[epoch] + amount;
