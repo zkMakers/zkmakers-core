@@ -198,7 +198,7 @@ contract LMPool is ReentrancyGuard {
 
         uint256 accTokenPerShareTmp = (getRewardsPerEpoch(epoch) * precision / totalPoints[epoch]);
 
-        uint256 totalRewardsForUser = user.amount * accTokenPerShareTmp / 1e12;
+        uint256 totalRewardsForUser = user.amount * accTokenPerShareTmp / precision;
         uint256 pending = totalRewardsForUser - user.rewardDebt;
         return pending;
     }
@@ -299,7 +299,7 @@ contract LMPool is ReentrancyGuard {
 
         UserInfo storage user = userInfo[msg.sender][epoch];
         updatePool(epoch);
-        uint256 totalRewardsForUser = user.amount * accTokenPerShare[epoch] / 1e12;
+        uint256 totalRewardsForUser = user.amount * accTokenPerShare[epoch] / precision;
         uint256 pending = totalRewardsForUser - user.rewardDebt;
         require(pending > 0, "There is nothing to claim for this epoch");
         user.rewardDebt = totalRewardsForUser;
