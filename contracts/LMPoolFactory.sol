@@ -237,10 +237,11 @@ contract LMPoolFactory is ILMPoolFactory, Ownable, AccessControl {
         uint32 _chainId,
         uint8 _poolType
     ) public returns(address) {
-        require(acceptedRewardTokens[_rewardToken] ||
-                (_chainId == CONTRACT_DEPLOYED_CHAIN &&
-                _rewardToken == _pairTokenA || 
-                _rewardToken == _pairTokenB), "LMPoolFactory: Reward token is not accepted.");
+        require(
+            acceptedRewardTokens[_rewardToken] ||
+            (_chainId == CONTRACT_DEPLOYED_CHAIN && ( _rewardToken == _pairTokenA || _rewardToken == _pairTokenB)),
+            "LMPoolFactory: Reward token is not accepted."
+        );
         require(acceptedExchanges[_exchange], "LMPoolFactory: Exchange is not accepted.");
         require(acceptedBlockchains[_chainId], "LMPoolFactory: Blockchain is not accepted.");
         require(getPool[_pairTokenA][_pairTokenB][_rewardToken][_exchange][_poolType] == address(0), "LMPoolFactory: Pool already exists");
