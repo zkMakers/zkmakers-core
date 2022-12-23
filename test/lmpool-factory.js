@@ -277,17 +277,22 @@ contract('Liquid Miners Pool Factory', function (accounts) {
     });
   });
 
-  // describe('Update Pool', function () {
+  describe('Update Pool', function () {
 
-  //   it('should withdraw', async function() {      
-  //     await this.lmPoolFactory.addRewards(this.lmPool.address, '100000000000000000000000000', 3, { from: accounts[0], gasLimit: 1000000 });
-  //     assert.equal((await this.token.balanceOf(accounts[0])).toString(), '9999999900000000000000000000000000', 'Incorrect balance');
+    it("Shouldn't add rewards for inexistent pool",async function(){
+      await expectRevert(this.lmPoolFactory.addRewards(this.token.address, '100000000000000000000000000', 3, { from: accounts[0], gasLimit: 1000000 }),
+        "Pool not found");
+    })
 
-  //     await this.lmPoolFactory.withdraw(this.token.address, accounts[0], '900000000000000000000000', { from: accounts[0], gasLimit: 1000000 });
-  //     assert.equal((await this.token.balanceOf(accounts[0])).toString(), '9999999900900000000000000000000000', 'Incorrect balance');
-  //   });
+    it('should withdraw', async function() {      
+      await this.lmPoolFactory.addRewards(this.lmPool.address, '100000000000000000000000000', 3, { from: accounts[0], gasLimit: 1000000 });
+      assert.equal((await this.token.balanceOf(accounts[0])).toString(), '9999999900000000000000000000000000', 'Incorrect balance');
 
-  // });
+      await this.lmPoolFactory.withdraw(this.token.address, accounts[0], '900000000000000000000000', { from: accounts[0], gasLimit: 1000000 });
+      assert.equal((await this.token.balanceOf(accounts[0])).toString(), '9999999900900000000000000000000000', 'Incorrect balance');
+    });
+
+  });
 
 });
 
