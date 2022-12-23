@@ -24,20 +24,20 @@ contract LMPoolFactory is ILMPoolFactory, Ownable, AccessControl {
     address[] public allPools;
     
     //Fee for reward token
-    uint256 fee = 900; // 9%
-    uint256 constant maxFee = 2700; // 27%
+    uint256 public fee = 900; // 9%
+    uint256 public constant maxFee = 2700; // 27%
 
     //Promoters fee
-    uint256 promotersFee = 100; // 1%
-    uint256 constant maxPromotersFee = 300; //3%
+    uint256 public promotersFee = 100; // 1%
+    uint256 public constant maxPromotersFee = 300; //3%
 
     //Oracle fee
-    uint256 oracleFee = 100; // 1%
-    uint256 constant maxOracleFee = 300; // 3%
+    uint256 public oracleFee = 100; // 1%
+    uint256 public constant maxOracleFee = 300; // 3%
     
     //Fee for reward with custom token
-    uint256 customTokenFee = 1900; // 19%
-    uint256 constant maxCustomTokenFee = 4000; //40%
+    uint256 public customTokenFee = 1900; // 19%
+    uint256 public constant maxCustomTokenFee = 4000; //40%
 
     // ERC20 => Accepted
     mapping(address => bool) public acceptedRewardTokens;
@@ -131,6 +131,18 @@ contract LMPoolFactory is ILMPoolFactory, Ownable, AccessControl {
         return fee;
     }
 
+    function getPromotersFee() external view returns (uint256) {
+        return promotersFee;
+    }
+
+    function getOracleFee() external view returns (uint256) {
+        return promotersFee;
+    }
+
+    function getCustomTokenFee() external view returns (uint256) {
+        return customTokenFee;
+    }
+
     function addOwner(address owner) external onlyAdmin {
         _grantRole(OWNER_ADMIN, owner);
     }
@@ -170,19 +182,19 @@ contract LMPoolFactory is ILMPoolFactory, Ownable, AccessControl {
     function setPromotersFee(uint256 amount) external onlyAdmin {
         require(amount <= maxPromotersFee,"LMPoolFactory: promoters fee exceeds max permitted");
         promotersFee = amount;
-        emit FeeSetted(fee,"Promoter fee");
+        emit FeeSetted(promotersFee,"Promoter fee");
     }
 
     function setOracleFee(uint256 amount) external onlyAdmin {
         require(amount <= maxOracleFee,"LMPoolFactory: oracle fee exceeds max permitted");
         oracleFee = amount;
-        emit FeeSetted(fee,"Oracle fee");
+        emit FeeSetted(oracleFee,"Oracle fee");
     }
 
     function setCustomTokenFee(uint256 amount) external onlyAdmin {
         require(amount <= maxCustomTokenFee,"LMPoolFactory: custom token fee exceeds max permitted");
         customTokenFee = amount;
-        emit FeeSetted(fee,"Custom token fee");
+        emit FeeSetted(customTokenFee,"Custom token fee");
     }
 
     function setProofVerifier(ProofVerifier newProofVerifier) external onlyAdmin {
