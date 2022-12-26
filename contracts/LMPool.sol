@@ -150,7 +150,7 @@ contract LMPool is ReentrancyGuard {
         }
 
         //This is already verified on ProofVerifier.verify()
-        // require(exchangeUidUser[uidHash] == sender,"Only account owner can submit proof");
+        require(exchangeUidUser[uidHash] == sender,"Only account owner can submit proof");
 
         UserInfo storage user = userInfo[sender][epoch];
 
