@@ -1,4 +1,5 @@
 const { expectRevert, expectEvent, BN, time, ether, balance } = require('@openzeppelin/test-helpers');
+const { inTransaction } = require('@openzeppelin/test-helpers/src/expectEvent');
 const { web3 } = require('@openzeppelin/test-helpers/src/setup');
 const { expect, assert } = require('chai');
 
@@ -101,7 +102,7 @@ contract('Liquid Miners Pool Factory', function (accounts) {
       assert.equal(await this.lmPoolFactory.getOracleFee(), 100, "Oracle fees are not correctly setted");
       assert.equal(await this.lmPoolFactory.maxOracleFee(), 300, "Max oracle fees are not correctly setted");
       assert.equal(await this.lmPoolFactory.getCustomTokenFee(), 1900, "Custom token fees are not correctly setted");
-      assert.equal(await this.lmPoolFactory.maxCustomTokenFee(), 4000, "Max custom token fees are not correctly setted");
+      assert.equal(await this.lmPoolFactory.maxCustomTokenFee(), 4000, "Max custom token fees are not correctly setted");      
     });
   });
 
@@ -275,6 +276,70 @@ contract('Liquid Miners Pool Factory', function (accounts) {
       await expectRevert(this.lmPoolFactory.setProofVerifier(this.lmPoolFactory.address,{from:accounts[1]}),"LMPoolFactory: Restricted to OWNER_ADMIN role on LMPool");      
 
     });
+  });
+
+  describe('Create dynamic pool', function(){
+    it('Should create dynamic pool and add rewards',async function(){
+      await this.lmPoolFactory.createDynamicPoolAndAddRewards(
+        "gate", this.tokenA.address, this.tokenB.address,this.token.address,chainId,10000,10,1);
+    });
+
+    it("Shouln't create pool in a not accepted exchange",async function(){
+      await expectRevert(this.lmPoolFactory.createDynamicPool(
+        "otherExchange",
+        this.tokenA.address,
+        this.tokenB.address,
+        this.token.address,
+        chainId,
+        0,
+        { from: accounts[0] }
+      ),
+      "LMPoolFactory: Exchange is not accepted.")
+    })
+
+    it("Shouln't create pool in a not accepted blockchain",async function(){
+      await expectRevert(this.lmPoolFactory.createDynamicPool(
+        "gate",
+        this.tokenA.address,
+        this.tokenB.address,
+        this.token.address,
+        130,
+        0,
+        { from: accounts[0] }
+      ),
+      "LMPoolFactory: Blockchain is not accepted.")
+    })
+
+    it("Shouln't create same pool twice",async function(){
+      await expectRevert(this.lmPoolFactory.createDynamicPool(
+        "gate",
+        this.tokenA.address,
+        this.tokenB.address,
+        this.token.address,
+        chainId,
+        0,
+        { from: accounts[0] }
+      ),
+      "LMPoolFactory: Pool already exists.")
+    })
+
+    it("Shouln't create pool with reward token not accepted",async function(){
+      let newRewardToken = await Token.new();
+
+      this.lmPoolFactory.addBlockchain(15);
+
+      await expectRevert(this.lmPoolFactory.createDynamicPool(
+        "gate",
+        this.tokenA.address,
+        this.tokenB.address,
+        newRewardToken.address,
+        15,
+        0,
+        { from: accounts[0] }
+      ),
+      "LMPoolFactory: Reward token is not accepted.")
+    });
+
   });
 
   describe('Update Pool', function () {
