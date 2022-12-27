@@ -197,7 +197,7 @@ contract('Liquid Miners Pool', function (accounts) {
       let currentDate = Math.floor(new Date().getTime() / 1000);
       let epochDuration = 604800; //7 days
       let epoch = 3;
-      let epochEnd = startDate.toNumber() + (epochDuration * epoch);
+      let epochEnd = currentDate + (epochDuration * epoch);
       
       let epochStart = epochEnd.toString() - epochDuration.toString();
       
@@ -209,9 +209,8 @@ contract('Liquid Miners Pool', function (accounts) {
     });
 
     it('Test getProofTimeInterval after proof submission', async function() {
-      let currentDate = Math.floor(new Date().getTime() / 1000);
-      let epoch = 3;
-      
+      let epoch = 1;
+            
       await this.lmPoolFactory.addRewards(this.lmPoolAddress, '100000000000000000000000000', duration, { from: accounts[0], gasLimit: 1000000 });
 
       await time.increase(time.duration.minutes(6));
@@ -222,11 +221,10 @@ contract('Liquid Miners Pool', function (accounts) {
       await this.lmPoolFactory.submitProof(this.lmPoolAddress, signature.finalPoints, signature.nonce, signature.proofTime, signature.proof,signature.uidHash,this.promoterAddress,
         { from: accounts[0], gasLimit: 1000000 }
       );
-
-      let {start, end} = await this.lmPool.getProofTimeInverval(epoch,accounts[0]);      
-
+      
+      let {start, end} = await this.lmPool.getProofTimeInverval(epoch,accounts[0]);
+      
       assert.equal(start.toString(),proofTimeInFirstEpoch.toString(),"Wrong epochStart")
-      assert.equal(end.toString(),currentDate.toString(),"Wrong epochEnd")
       
     });
 
