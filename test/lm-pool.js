@@ -1,4 +1,5 @@
 const { expectRevert, expectEvent, BN, time, ether, balance } = require('@openzeppelin/test-helpers');
+const { inTransaction } = require('@openzeppelin/test-helpers/src/expectEvent');
 const { expect, assert } = require('chai');
 
 const LMPoolFactory = artifacts.require("LMPoolFactory");
@@ -108,6 +109,12 @@ contract('Liquid Miners Pool', function (accounts) {
       assert.isTrue(true, 'We broke');
     });
 
+      it("Should return epoch 0 for timestamp prior to startDate",async function(){
+        let startDate = await this.lmPool.startDate();
+
+        assert.equal(await this.lmPool.getEpoch(startDate - 1),0,"Wrong epoch");
+      });
+
     it('multi claim 3 epochs', async function() {
       await this.lmPoolFactory.createOracle(this.signerAddress, { from: accounts[0] });
       await this.lmPoolFactory.addRewards(this.lmPoolAddress, '100000000000000000000000000', 3, { from: accounts[0], gasLimit: 1000000 });
@@ -162,6 +169,30 @@ contract('Liquid Miners Pool', function (accounts) {
       assert.isTrue(true, 'We broke');
     });
 
+    it("Can't claim more than 100 epochs at a time", async function(){
+      let epochs = [];
+      for (let i = 1; i <= 101; i++) {
+        epochs.push(i);        
+      }
+      await expectRevert(this.lmPool.multiClaim(epochs),"LMPool: epochs amount must be less or equal than 100");
+    })
+    
+    it("Can't claim oracle rewards for more than 100 epochs at a time", async function(){
+      let epochs = [];
+      for (let i = 1; i <= 101; i++) {
+        epochs.push(i);        
+      }
+      await expectRevert(this.lmPool.multiClaimOracleRewards(epochs),"LMPool: epochs amount must be less or equal than 100");
+    })
+    
+    it("Can't claim rebates rewards more than 100 epochs at a time", async function(){
+      let epochs = [];
+      for (let i = 1; i <= 101; i++) {
+        epochs.push(i);        
+      }
+      await expectRevert(this.lmPool.multiClaimRebateRewards(epochs),"LMPool: epochs amount must be less or equal than 100");
+    })
+
   });
 
   describe('Simple pool', function () {
@@ -207,9 +238,38 @@ contract('Liquid Miners Pool', function (accounts) {
       );
     });
 
+    it("Shouldn't add rewards as not factory",async function(){
+      await expectRevert(this.lmPool.addRewards(20,15,15, 2, { from: accounts[0]}),
+      "Only factory can add internal rewards");
+    });
+
+    it("Shouldn't add rewards for more than 41 epochs",async function(){
+      await expectRevert(this.lmPoolFactory.addRewards(
+        this.lmPoolAddress, '2000000000000000000000', 42, { from: accounts[0], gasLimit: 1000000 }),
+        "Can't send more than 41 epochs at the same time")
+    });
+
+    it("Shouldn't add rewards for 0 epochs",async function(){
+      await expectRevert(this.lmPoolFactory.addRewards(
+        this.lmPoolAddress, '2000000000000000000000', 0, { from: accounts[0], gasLimit: 1000000 }),
+        "Can't divide by 0 epochs")
+    });
+
   });
 
   describe('Simple pool', function () {
+
+    it("Shouldn't submit proof if pool is not active", async function() {      
+      await time.increase(time.duration.minutes(6));
+      
+      let signature = await this.signer.createSignature(accounts[2], 5, proofTimeInFirstEpoch, this.lmPoolAddress,web3.utils.keccak256(accounts[2]));
+      
+      await this.lmPoolFactory.createOracle(this.signerAddress, { from: accounts[0] });
+
+      await expectRevert(this.lmPoolFactory.submitProof(this.lmPoolAddress, signature.finalPoints, signature.nonce, signature.proofTime, signature.proof,signature.uidHash,this.promoterAddress,
+        { from: accounts[2], gasLimit: 1000000 }
+      ),"LMPool: Pool has not started");
+    });
 
     it('should throw error if we already reached claim time', async function() {
       await this.lmPoolFactory.addRewards(this.lmPoolAddress, '100000000000000000000000000', duration, { from: accounts[0], gasLimit: 1000000 });
@@ -252,6 +312,37 @@ contract('Liquid Miners Pool', function (accounts) {
         'Signature is not from a valid oracle'
       );
     });
+
+    it('should throw error if proof is not from factory', async function() {
+      await this.lmPoolFactory.addRewards(this.lmPoolAddress, '100000000000000000000000000', duration, { from: accounts[0], gasLimit: 1000000 });
+
+      await time.increase(time.duration.minutes(6));
+
+      assert.isTrue(
+        await this.lmPool.isActive(),
+        'isActive value is wrong'
+      );
+      const signature = await this.signer.createSignature(accounts[2], 5, proofTimeInFirstEpoch, this.lmPoolAddress,web3.utils.keccak256(accounts[2]));
+
+      await expectRevert(
+        this.lmPool.submitProof(accounts[0], signature.finalPoints, signature.nonce,
+          signature.proofTime, signature.uidHash,this.promoterAddress,this.promoterAddress),
+        'Only factory can add proofs'
+      );
+    });
+
+    it("Shouldn't submit proof with amount = 0",async function(){
+      await this.lmPoolFactory.addRewards(this.lmPoolAddress, '100000000000000000000000000', duration, { from: accounts[0], gasLimit: 1000000 });
+
+      await time.increase(time.duration.minutes(6));
+
+      let signature = await this.signer.createSignature(accounts[2], 0, proofTimeInFirstEpoch, this.lmPoolAddress,web3.utils.keccak256(accounts[2]));
+      await this.lmPoolFactory.createOracle(this.signerAddress, { from: accounts[0] });
+
+      await expectRevert(this.lmPoolFactory.submitProof(this.lmPoolAddress, signature.finalPoints, signature.nonce, signature.proofTime, signature.proof,signature.uidHash,this.promoterAddress,
+        { from: accounts[2], gasLimit: 1000000 }
+      ),"Amount must be more than 0");
+    })
 
     it('should count points', async function() {
       await this.lmPoolFactory.addRewards(this.lmPoolAddress, '100000000000000000000000000', duration, { from: accounts[0], gasLimit: 1000000 });
@@ -302,6 +393,14 @@ contract('Liquid Miners Pool', function (accounts) {
       assert.equal(await this.lmPool.pendingReward(accounts[2], 1), '0', 'Incorrect pending reward');
       await expectRevert(
         this.lmPool.claim(1, { from: accounts[2], gasLimit: 1000000 }),
+        'This epoch is not claimable'
+      );
+      await expectRevert(
+        this.lmPool.claimRebateRewards(1, { from: accounts[2], gasLimit: 1000000 }),
+        'This epoch is not claimable'
+      );
+      await expectRevert(
+        this.lmPool.claimOracleRewards(1, { from: accounts[2], gasLimit: 1000000 }),
         'This epoch is not claimable'
       );
       await time.increase(time.duration.days(8));
@@ -357,6 +456,15 @@ contract('Liquid Miners Pool', function (accounts) {
       
       assert.equal(await this.token.balanceOf(accounts[2]), '0', 'Incorrect balance');
     })
+
+    it("Sholuld get 0 pending rewards",async function(){
+      await this.lmPoolFactory.addRewards(this.lmPoolAddress, '1000000000000000000000000', duration, { from: accounts[0], gasLimit: 1000000 });
+            
+      await time.increase(time.duration.minutes(6));
+
+      assert.equal(await this.lmPool.pendingReward(accounts[2],4),0,"Incorrect pending rewards");
+
+    });
 
   });
 
@@ -480,7 +588,6 @@ contract('Liquid Miners Pool', function (accounts) {
       assert.equal((await this.token.balanceOf(accounts[5])).toString(), '5000000000000000000000', 'Incorrect promoter balance');
     });    
   });
-
 
   describe('Oracle rewards', function () {    
 
@@ -613,6 +720,7 @@ contract('Liquid Miners Pool', function (accounts) {
       assert.equal((await this.token.balanceOf(signerAddress2)).toString(), '5000000000000000000000', 'Incorrect signer balance');
     });    
   });
+
 });
 
 function sumStrings(a,b) { 

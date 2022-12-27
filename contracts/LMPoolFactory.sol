@@ -301,8 +301,8 @@ contract LMPoolFactory is ILMPoolFactory, Ownable, AccessControl {
         );
         require(acceptedExchanges[_exchange], "LMPoolFactory: Exchange is not accepted.");
         require(acceptedBlockchains[_chainId], "LMPoolFactory: Blockchain is not accepted.");
-        require(getPool[_pairTokenA][_pairTokenB][_rewardToken][_exchange][_poolType] == address(0), "LMPoolFactory: Pool already exists");
-        require(getPool[_pairTokenB][_pairTokenA][_rewardToken][_exchange][_poolType] == address(0), "LMPoolFactory: Pool already exists");
+        require(getPool[_pairTokenA][_pairTokenB][_rewardToken][_exchange][_poolType] == address(0), "LMPoolFactory: Pool already exists.");
+        require(getPool[_pairTokenB][_pairTokenA][_rewardToken][_exchange][_poolType] == address(0), "LMPoolFactory: Pool already exists.");
         
         LMPool newPool = new LMPool(
             address(this),
