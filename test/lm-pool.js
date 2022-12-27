@@ -225,7 +225,7 @@ contract('Liquid Miners Pool', function (accounts) {
 
       let {start, end} = await this.lmPool.getProofTimeInverval(epoch,accounts[0]);      
 
-      assert.equal(start.toString(),epochStart.toString(),"Wrong epochStart")
+      assert.equal(start.toString(),proofTimeInFirstEpoch.toString(),"Wrong epochStart")
       assert.equal(end.toString(),startDate.toString(),"Wrong epochEnd")
       
     });
