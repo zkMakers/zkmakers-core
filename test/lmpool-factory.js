@@ -323,6 +323,19 @@ contract('Liquid Miners Pool Factory', function (accounts) {
       "LMPoolFactory: Pool already exists.")
     })
 
+    it("Shouln't create same pool twice changing the tokens order",async function(){
+      await expectRevert(this.lmPoolFactory.createDynamicPool(
+        "gate",
+        this.tokenB.address,
+        this.tokenA.address,
+        this.token.address,
+        chainId,
+        0,
+        { from: accounts[0] }
+      ),
+      "LMPoolFactory: Pool already exists.")
+    })
+
     it("Shouln't create pool with reward token not accepted",async function(){
       let newRewardToken = await Token.new();
 
@@ -347,7 +360,7 @@ contract('Liquid Miners Pool Factory', function (accounts) {
     it("Shouldn't add rewards for inexistent pool",async function(){
       await expectRevert(this.lmPoolFactory.addRewards(this.token.address, '100000000000000000000000000', 3, { from: accounts[0], gasLimit: 1000000 }),
         "Pool not found");
-    })
+    });    
 
     it('should withdraw', async function() {      
       await this.lmPoolFactory.addRewards(this.lmPool.address, '100000000000000000000000000', 3, { from: accounts[0], gasLimit: 1000000 });

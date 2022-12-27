@@ -109,11 +109,11 @@ contract('Liquid Miners Pool', function (accounts) {
       assert.isTrue(true, 'We broke');
     });
 
-      it("Should return epoch 0 for timestamp prior to startDate",async function(){
-        let startDate = await this.lmPool.startDate();
+    it("Should return epoch 0 for timestamp prior to startDate",async function(){
+      let startDate = await this.lmPool.startDate();
 
-        assert.equal(await this.lmPool.getEpoch(startDate - 1),0,"Wrong epoch");
-      });
+      assert.equal(await this.lmPool.getEpoch(startDate - 1),0,"Wrong epoch");
+    });
 
     it('multi claim 3 epochs', async function() {
       await this.lmPoolFactory.createOracle(this.signerAddress, { from: accounts[0] });
@@ -175,7 +175,7 @@ contract('Liquid Miners Pool', function (accounts) {
         epochs.push(i);        
       }
       await expectRevert(this.lmPool.multiClaim(epochs),"LMPool: epochs amount must be less or equal than 100");
-    })
+    });
     
     it("Can't claim oracle rewards for more than 100 epochs at a time", async function(){
       let epochs = [];
@@ -183,7 +183,7 @@ contract('Liquid Miners Pool', function (accounts) {
         epochs.push(i);        
       }
       await expectRevert(this.lmPool.multiClaimOracleRewards(epochs),"LMPool: epochs amount must be less or equal than 100");
-    })
+    });
     
     it("Can't claim rebates rewards more than 100 epochs at a time", async function(){
       let epochs = [];
@@ -191,7 +191,44 @@ contract('Liquid Miners Pool', function (accounts) {
         epochs.push(i);        
       }
       await expectRevert(this.lmPool.multiClaimRebateRewards(epochs),"LMPool: epochs amount must be less or equal than 100");
-    })
+    });
+
+    it("Test getProofTimeInterval",async function(){
+      let startDate = (await this.lmPool.startDate());
+      let epochDuration = 604800; //7 days
+      let epoch = 3;
+      let epochEnd = startDate.toNumber() + (epochDuration * epoch);
+      
+      let epochStart = epochEnd.toString() - epochDuration.toString();
+      
+      let {start, end} = await this.lmPool.getProofTimeInverval(epoch,accounts[0]);      
+
+      assert.equal(start.toString(),epochStart.toString(),"Wrong epochStart")
+      assert.equal(end.toString(),startDate.toString(),"Wrong epochEnd")
+
+    });
+
+    it('Test getProofTimeInterval after proof submission', async function() {
+      let startDate = (await this.lmPool.startDate());      
+      let epoch = 3;
+      
+      await this.lmPoolFactory.addRewards(this.lmPoolAddress, '100000000000000000000000000', duration, { from: accounts[0], gasLimit: 1000000 });
+
+      await time.increase(time.duration.minutes(6));
+
+      await this.lmPoolFactory.createOracle(this.signerAddress, { from: accounts[0] });
+      let signature = await this.signer.createSignature(accounts[0], 5, proofTimeInFirstEpoch, this.lmPoolAddress,web3.utils.keccak256(accounts[0]));
+
+      await this.lmPoolFactory.submitProof(this.lmPoolAddress, signature.finalPoints, signature.nonce, signature.proofTime, signature.proof,signature.uidHash,this.promoterAddress,
+        { from: accounts[0], gasLimit: 1000000 }
+      );
+
+      let {start, end} = await this.lmPool.getProofTimeInverval(epoch,accounts[0]);      
+
+      assert.equal(start.toString(),epochStart.toString(),"Wrong epochStart")
+      assert.equal(end.toString(),startDate.toString(),"Wrong epochEnd")
+      
+    });
 
   });
 
@@ -269,6 +306,30 @@ contract('Liquid Miners Pool', function (accounts) {
       await expectRevert(this.lmPoolFactory.submitProof(this.lmPoolAddress, signature.finalPoints, signature.nonce, signature.proofTime, signature.proof,signature.uidHash,this.promoterAddress,
         { from: accounts[2], gasLimit: 1000000 }
       ),"LMPool: Pool has not started");
+    });
+
+    it("Shouldn't submit proof for inexistent pool", async function() {      
+      await time.increase(time.duration.minutes(6));
+      
+      let signature = await this.signer.createSignature(accounts[2], 5, proofTimeInFirstEpoch, this.lmPoolAddress,web3.utils.keccak256(accounts[2]));
+      
+      await this.lmPoolFactory.createOracle(this.signerAddress, { from: accounts[0] });
+
+      await expectRevert(this.lmPoolFactory.submitProof(accounts[0], signature.finalPoints, signature.nonce, signature.proofTime, signature.proof,signature.uidHash,this.promoterAddress,
+        { from: accounts[2], gasLimit: 1000000 }
+      ),"Pool not found");
+    });
+
+    it("Shouldn't submit proof zero address promoter", async function() {      
+      await time.increase(time.duration.minutes(6));
+      
+      let signature = await this.signer.createSignature(accounts[2], 5, proofTimeInFirstEpoch, this.lmPoolAddress,web3.utils.keccak256(accounts[2]));
+      
+      await this.lmPoolFactory.createOracle(this.signerAddress, { from: accounts[0] });
+
+      await expectRevert(this.lmPoolFactory.submitProof(this.lmPoolAddress, signature.finalPoints, signature.nonce, signature.proofTime, signature.proof,signature.uidHash,"0x0000000000000000000000000000000000000000",
+        { from: accounts[2], gasLimit: 1000000 }
+      ),"Promoter can't be the zero address");
     });
 
     it('should throw error if we already reached claim time', async function() {
