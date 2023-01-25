@@ -1,32 +1,56 @@
+
 class Signer {
     constructor(web3, signerPrivateKey) {
         this.web3 = web3;
         this.signerPrivateKey = signerPrivateKey;
+        this.splitSignature = require('ethers/lib/utils').splitSignature;
     }
 
     async createSignature(wallet, points, proofTime, poolAddress,uidHash) {
         const nonce = this.generateNonce();
         const finalPoints = this.web3.utils.toWei(points + '', 'ether');
 
-        const hash = this.web3.utils.soliditySha3(
-            { type: 'address', value: wallet },
-            { type: 'uint256', value: finalPoints },
-            { type: 'uint256', value: nonce },
-            { type: 'uint256', value: proofTime },
-            { type: 'address', value: poolAddress },
-            { type: 'bytes32', value: uidHash }
+
+        const ethers = require('ethers').ethers;
+        const ethersWallet = new ethers.Wallet(this.signerPrivateKey);
+
+        const signer = ethersWallet.connect(web3.defaultProvider);
+
+        const signature = await signer._signTypedData(
+            {
+                name: "LiquidMiners",
+                version: "1",
+                chainId: '1',
+                verifyingContract: poolAddress
+            },
+            {
+                Proof: [
+                    {name:"senderAddress",type:"address"},
+                    {name:"totalPoints",type:"uint256"},
+                    {name:"nonce", type:"uint256"},
+                    {name:"lastProofTime", type:"uint256"},
+                    {name:"poolAddress", type:"address"},
+                    {name:"uidHash", type:"bytes32"}
+                ],
+            },
+            {
+                senderAddress: wallet,
+                totalPoints: finalPoints,
+                nonce: nonce,
+                lastProofTime: proofTime.toString(),
+                poolAddress: poolAddress,
+                uidHash: uidHash
+            }
         );
-
-        const sig = await this.sign(hash);
-
         return {
             finalPoints: finalPoints,
-            proof: sig,
+            proof: signature,
             nonce: nonce,
             proofTime: proofTime,
             uidHash: uidHash
         };
     }
+
 
     async sign(hash) {
         // Or await this.web3.eth.personal.sign(hash, signerAddress)

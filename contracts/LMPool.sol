@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity 0.8.7;
 
 import "@openzeppelin/contracts/utils/Address.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "./ILMPoolFactory.sol";
 import "./TransferHelper.sol";
 
-contract LMPool {
+contract LMPool is ReentrancyGuard {
 
     //ID OF THE CHAIN WHERE THE POOL IS DEPLOYED
     uint256 private CONTRACT_DEPLOYED_CHAIN;
@@ -21,7 +22,6 @@ contract LMPool {
     }
     // Epoch => Token Per Share
     mapping (uint256 => uint256) accTokenPerShare;
-    uint256 lastRewardEpoch;
     // Wallet => Epoch => Info
     mapping (address => mapping (uint256 => UserInfo)) public userInfo;
     // Wallet => Total Points
@@ -43,9 +43,9 @@ contract LMPool {
     uint256 public tokenDecimals;
     uint256 public startDate;
     address public factory;
-    uint256 public epochDuration = 7 days;
-    uint256 public delayClaim = 3 days; // We need to wait 3 days after the epoch for claiming
-    uint256 public totalRewards;    
+    uint256 public constant epochDuration = 7 days;
+    uint256 public constant delayClaim = 3 days; // We need to wait 3 days after the epoch for claiming
+    uint256 public totalRewards;
     
     //Amount available for promoters
     uint256 public promotersTotalRewards;
@@ -74,7 +74,7 @@ contract LMPool {
     // User => Epoch => Last Proof Timestamp
     mapping(address => mapping(uint256 => uint256)) public lastProofTime;
 
-    uint256 precision = 1e12;
+    uint256 public constant precision = 1e12;
 
     string public exchange;
     string public pair;
@@ -114,7 +114,7 @@ contract LMPool {
 
     function addRewards(uint256 amount, uint256 rewardDurationInEpochs, uint256 promotersRewards, uint256 oracleRewards) external {
         require(msg.sender == factory, "Only factory can add internal rewards");
-        require(rewardDurationInEpochs <= 41, "Can't send more than 90 epochs at the same time");
+        require(rewardDurationInEpochs <= 41, "Can't send more than 41 epochs at the same time");
         require(rewardDurationInEpochs > 0, "Can't divide by 0 epochs");
         uint256 currentEpoch = getCurrentEpoch();
 
@@ -138,7 +138,7 @@ contract LMPool {
         }
     }
 
-    function submitProof(address sender, uint256 amount, uint256 nonce, uint256 proofTime, bytes32 uidHash, address promoter, address proofSigner) isPoolRunning external {
+    function submitProof(address sender, uint256 amount, uint256 nonce, uint256 proofTime, bytes32 uidHash, address promoter, address proofSigner) isPoolRunning nonReentrant external {
         require(msg.sender == factory, "Only factory can add proofs");
         require(!usedNonces[nonce], "Nonce already used");
         uint256 epoch = getEpoch(proofTime);
@@ -149,7 +149,8 @@ contract LMPool {
             exchangeUidUser[uidHash] = sender;
         }
 
-        require(exchangeUidUser[uidHash] == sender,"Only account owner can submit proof");        
+        //This is already verified on ProofVerifier.verify()
+        require(exchangeUidUser[uidHash] == sender,"Only account owner can submit proof");
 
         UserInfo storage user = userInfo[sender][epoch];
 
@@ -158,23 +159,7 @@ contract LMPool {
 
         updatePool(epoch);
 
-        if (user.amount > 0) {
-            uint256 remainingRewards = totalRewards;
-            uint256 pending = (user.amount * accTokenPerShare[epoch] / precision) - user.rewardDebt;
-
-            if (remainingRewards == 0) {
-                pending = 0;
-            } else if (pending > remainingRewards) {
-                pending = remainingRewards;
-            }
-
-            if (pending > 0) {
-                TransferHelper.safeTransfer(rewardToken, address(sender), pending);
-            }
-        }
-
         user.amount = user.amount + amount;
-        user.rewardDebt = user.amount * accTokenPerShare[epoch] / precision;
         userTotalPoints[sender] = userTotalPoints[sender] + amount;
 
         totalPoints[epoch] = totalPoints[epoch] + amount;
@@ -191,37 +176,32 @@ contract LMPool {
     }
 
     function pendingOracleReward(address _user, uint256 epoch) public view returns (uint256) {
-        uint256 percentage = oraclesEpochContribution[_user][epoch] * 100 / oraclesEpochTotalContribution[epoch];
-        return oraclesRewardPerEpoch[epoch] * percentage / 100;
+        uint256 percentage = oraclesEpochContribution[_user][epoch] * 10000 / oraclesEpochTotalContribution[epoch];
+        return oraclesRewardPerEpoch[epoch] * percentage / 10000;
     }
 
     function pendingRebateReward(address _user, uint256 epoch) public view returns (uint256) {
-        uint256 percentage = promoterEpochContribution[_user][epoch] * 100 / promotersEpochTotalContribution[epoch];
-        return promotersRewardPerEpoch[epoch] * percentage / 100;
+        uint256 percentage = promoterEpochContribution[_user][epoch] * 10000 / promotersEpochTotalContribution[epoch];
+        return promotersRewardPerEpoch[epoch] * percentage / 10000;
     }
 
     function pendingReward(address _user, uint256 epoch) external view returns (uint256) {
+
         UserInfo storage user = userInfo[_user][epoch];
 
-        uint256 tokenPerShare = accTokenPerShare[epoch];
-        uint256 currentEpoch = getCurrentEpoch();
-
-        if (currentEpoch > lastRewardEpoch && totalPoints[epoch] != 0) {
-            uint256 multiplier = currentEpoch - lastRewardEpoch;
-            uint256 reward = multiplier * getRewardsPerEpoch(epoch);
-            tokenPerShare = tokenPerShare + (reward * precision / totalPoints[epoch]);
+        if (totalPoints[epoch] == 0) {
+            return 0;
         }
 
-        uint256 remainingRewards = totalRewards;
-        uint256 rewards = (user.amount * tokenPerShare / precision) - user.rewardDebt;
-
-        if (remainingRewards == 0) {
-            rewards = 0;
-        } else if (rewards > remainingRewards) {
-            rewards = remainingRewards;
+        if (!canClaimThisEpoch(epoch)) {
+            return 0;
         }
 
-        return rewards;
+        uint256 accTokenPerShareTmp = (getRewardsPerEpoch(epoch) * precision / totalPoints[epoch]);
+
+        uint256 totalRewardsForUser = user.amount * accTokenPerShareTmp / precision;
+        uint256 pending = totalRewardsForUser - user.rewardDebt;
+        return pending;
     }
 
     function getRewardToken() public view returns (address) {
@@ -232,11 +212,11 @@ contract LMPool {
         return startDate;
     }
     
-    function getEpochDuration() public view returns (uint256) {
+    function getEpochDuration() external pure returns (uint256) {
         return epochDuration;
     }
 
-    function getLastEpoch() public view returns (uint256) {
+    function getLastEpoch() external view returns (uint256) {
         return lastEpoch;
     }
 
@@ -244,19 +224,19 @@ contract LMPool {
         return rewardPerEpoch[epoch];
     }
 
-    function getPromoterEpochContribution(address promoter,uint256 epoch) public view returns (uint256) {
+    function getPromoterEpochContribution(address promoter,uint256 epoch) external view returns (uint256) {
         return promoterEpochContribution[promoter][epoch];
     }
 
-    function getPromotersEpochTotalContribution(uint256 epoch) public view returns (uint256) {
+    function getPromotersEpochTotalContribution(uint256 epoch) external view returns (uint256) {
         return promotersEpochTotalContribution[epoch];
     }
 
-    function getOracleEpochContribution(address oracle,uint256 epoch) public view returns (uint256) {
+    function getOracleEpochContribution(address oracle,uint256 epoch) external view returns (uint256) {
         return oraclesEpochContribution[oracle][epoch];
     }
 
-    function getOraclesEpochTotalContribution(uint256 epoch) public view returns (uint256) {
+    function getOraclesEpochTotalContribution(uint256 epoch) external view returns (uint256) {
         return oraclesEpochTotalContribution[epoch];
     }
 
@@ -265,18 +245,21 @@ contract LMPool {
     }
 
     function multiClaim(uint256[] calldata epochs) external {
+        require(epochs.length <= 100, "LMPool: epochs amount must be less or equal than 100");
         for (uint256 i = 0; i < epochs.length; i++) {
             claim(epochs[i]);
         }
     }
 
     function multiClaimRebateRewards(uint256[] calldata epochs) external {
+        require(epochs.length <= 100, "LMPool: epochs amount must be less or equal than 100");
         for (uint256 i = 0; i < epochs.length; i++) {
             claimRebateRewards(epochs[i]);
         }
     }
 
     function multiClaimOracleRewards(uint256[] calldata epochs) external {
+        require(epochs.length <= 100, "LMPool: epochs amount must be less or equal than 100");
         for (uint256 i = 0; i < epochs.length; i++) {
             claimOracleRewards(epochs[i]);
         }
@@ -317,13 +300,11 @@ contract LMPool {
 
         UserInfo storage user = userInfo[msg.sender][epoch];
         updatePool(epoch);
-        uint256 totalRewardsForUser = user.amount * accTokenPerShare[epoch] / 1e12;
+        uint256 totalRewardsForUser = user.amount * accTokenPerShare[epoch] / precision;
         uint256 pending = totalRewardsForUser - user.rewardDebt;
+        require(pending > 0, "There is nothing to claim for this epoch");
         user.rewardDebt = totalRewardsForUser;
-        if(pending > 0) {
-            TransferHelper.safeTransfer(rewardToken, address(msg.sender), pending);
-        }
-
+        TransferHelper.safeTransfer(rewardToken, address(msg.sender), pending);
         emit Withdraw(msg.sender, pending);
     }
 
@@ -362,21 +343,11 @@ contract LMPool {
     }
 
     // Update reward variables 
-    function updatePool(uint256 epoch) public {
-        uint256 currentEpoch = getCurrentEpoch();
-        if (currentEpoch <= lastRewardEpoch) {
-            return;
-        }
-
+    function updatePool(uint256 epoch) private {
         if (totalPoints[epoch] == 0) {
-            lastRewardEpoch = currentEpoch;
             return;
         }
-
-        uint256 multiplier = currentEpoch - lastRewardEpoch;
-        uint256 reward = multiplier * getRewardsPerEpoch(epoch);
-        accTokenPerShare[epoch] = accTokenPerShare[epoch] + (reward * precision/ totalPoints[epoch]);
-        lastRewardEpoch = currentEpoch;
+        accTokenPerShare[epoch] = getRewardsPerEpoch(epoch) * precision / totalPoints[epoch];
     }
 
     function isActive()
