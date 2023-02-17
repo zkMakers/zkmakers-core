@@ -59,7 +59,9 @@ contract LMPoolFactory is ILMPoolFactory, Ownable, AccessControl {
         uint32 chainId,
         uint256 created,
         string exchange,
-        address creator
+        address creator,
+        address rewardToken,
+        uint8 poolType
     );
 
     event RewardsAdded(
@@ -327,7 +329,9 @@ contract LMPoolFactory is ILMPoolFactory, Ownable, AccessControl {
             _chainId,
             block.timestamp,
             _exchange,
-            msg.sender
+            msg.sender,
+            _rewardToken,
+            _poolType
         );
 
         return address(newPool);
