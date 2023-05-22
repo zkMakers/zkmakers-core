@@ -44,7 +44,6 @@ contract LMPool is ReentrancyGuard {
     uint256 public startDate;
     address public factory;
     uint256 public constant epochDuration = 7 days;
-    uint256 public constant delayClaim = 3 days; // We need to wait 3 days after the epoch for claiming
     uint256 public totalRewards;
     
     //Amount available for promoters
@@ -241,7 +240,7 @@ contract LMPool is ReentrancyGuard {
     }
 
     function canClaimThisEpoch(uint256 epoch) public view returns (bool) {
-        return getCurrentEpochEnd() >= delayClaim + getEpochEnd(epoch);
+        return getCurrentEpochEnd() >= getEpochEnd(epoch);
     }
 
     function multiClaim(uint256[] calldata epochs) external {
