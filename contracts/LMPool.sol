@@ -240,7 +240,7 @@ contract LMPool is ReentrancyGuard {
     }
 
     function canClaimThisEpoch(uint256 epoch) public view returns (bool) {
-        return getCurrentEpochEnd() >= getEpochEnd(epoch);
+        return getCurrentEpochEnd() > getEpochEnd(epoch);
     }
 
     function multiClaim(uint256[] calldata epochs) external {
